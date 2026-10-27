@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+
+enum UserRole {
+  STUDENT
+  PLACEMENT_OFFICER
+  ADMIN
+  RECRUITER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  userUuid  String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  password  String
+  role      UserRole
+  status    UserStatus @default(ACTIVE)
+  student   Student?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Student {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userUuid           String   @unique @db.Uuid
+  registrationNumber String   @unique @db.VarChar(50)
+  departmentId       String?  @db.Uuid
+  program            String?  @db.VarChar(150)
+  batch              Int?
+  semester           Int?
+  phone              String?  @db.VarChar(20)
+  dateOfBirth        DateTime? @db.Date
+  location           String?  @db.VarChar(150)
+  status             UserStatus @default(ACTIVE)
+
+  user       User       @relation(fields: [userUuid], references: [userUuid], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id])
+  skills     StudentSkill[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Department {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @unique @db.VarChar(150)
+  status     UserStatus @default(ACTIVE)
+  students   Student[]
+  createdAt  DateTime  @default(now())
+}
+
+model Skill {
+  id        String          @id @default(uuid()) @db.Uuid
+  skill     String          @unique @db.VarChar(100)
+  category  String          @db.VarChar(100)
+  domain    String          @db.VarChar(100)
+  status    UserStatus      @default(ACTIVE)
+  students  StudentSkill[]
+  createdAt DateTime        @default(now())
+}
+
+model StudentSkill {
+  studentId String @db.Uuid
+  skillId   String @db.Uuid
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, skillId])
+}
