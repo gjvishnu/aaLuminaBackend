@@ -359,6 +359,231 @@ Example response:
 }
 ```
 
+## Companies
+
+### Get all companies
+
+### `GET /api/companies`
+
+Example response:
+
+```json
+[
+  {
+    "id": "7a4c2f10-9d31-4e6b-8f20-1c5b6a7d8e90",
+    "name": "Example Technologies",
+    "website": "https://example.com",
+    "location": "Bengaluru",
+    "status": "ACTIVE",
+    "createdAt": "2026-10-29T10:00:00.000Z",
+    "updatedAt": "2026-10-29T10:00:00.000Z"
+  }
+]
+```
+
+### Create a company
+
+### `POST /api/companies`
+
+`name` and `location` are required. `website` is optional.
+
+```json
+{
+  "name": "Example Technologies",
+  "website": "https://example.com",
+  "location": "Bengaluru"
+}
+```
+
+Example response:
+
+```json
+{
+  "id": "7a4c2f10-9d31-4e6b-8f20-1c5b6a7d8e90",
+  "name": "Example Technologies",
+  "website": "https://example.com",
+  "location": "Bengaluru",
+  "status": "ACTIVE",
+  "createdAt": "2026-10-29T10:00:00.000Z",
+  "updatedAt": "2026-10-29T10:00:00.000Z"
+}
+```
+
+### Edit a company
+
+### `PUT /api/companies/:id`
+
+Send only the fields that need to change.
+
+```json
+{
+  "location": "Chennai",
+  "website": "https://new-example.com"
+}
+```
+
+### Deactivate a company
+
+### `DELETE /api/companies/:id`
+
+This changes the company status to `INACTIVE`. It does not permanently delete the record.
+
+Example response:
+
+```json
+{
+  "message": "Company marked as inactive",
+  "company": {
+    "id": "7a4c2f10-9d31-4e6b-8f20-1c5b6a7d8e90",
+    "name": "Example Technologies",
+    "website": "https://example.com",
+    "location": "Bengaluru",
+    "status": "INACTIVE",
+    "createdAt": "2026-10-29T10:00:00.000Z",
+    "updatedAt": "2026-10-29T10:00:00.000Z"
+  }
+}
+```
+
+## Campus Drives
+
+Protected campus-drive write endpoints require the ID of an active `PLACEMENT_OFFICER` or `ADMIN` user in this header:
+
+```text
+x-user-id: user-uuid
+```
+
+The project does not currently contain a token or session authentication system. This header is the integration point for the existing authentication middleware when it is added.
+
+### Create a campus drive
+
+### `POST /api/drives`
+
+Creates a drive, its roles, department eligibility links, and skill links in one transaction.
+
+```json
+{
+  "companyId": "7a4c2f10-9d31-4e6b-8f20-1c5b6a7d8e90",
+  "driveDate": "2026-11-20T00:00:00.000Z",
+  "driveTime": "10:30",
+  "venue": "Lumina Campus, Chennai",
+  "registrationEndDate": "2026-11-15T00:00:00.000Z",
+  "status": "UPCOMING",
+  "roles": [
+    {
+      "jobRole": "Software Engineer",
+      "jobLocation": "Bangalore",
+      "jobType": "FULL_TIME",
+      "ctcPackage": "6 LPA",
+      "numberOfOpenings": 5,
+      "departments": ["CSE", "IT"],
+      "graduationYears": [2026, 2027],
+      "minimumCgpa": 7,
+      "maximumBacklogs": 0,
+      "degree": "B.E / B.Tech",
+      "otherCriteria": ["No active backlogs"],
+      "jobDescription": "Develop web applications using React and Node.js.",
+      "jdPdfUrl": null,
+      "selectionProcesses": [
+        "APTITUDE_TEST",
+        "CODING_ROUND",
+        "TECHNICAL_INTERVIEW",
+        "HR_INTERVIEW"
+      ],
+      "skillIds": ["skill-uuid-1", "skill-uuid-2"]
+    }
+  ]
+}
+```
+
+`departments` accepts existing department UUIDs or exact department names. `skillIds` must contain existing skill UUIDs.
+
+### List campus drives
+
+### `GET /api/drives`
+
+Optional query parameters:
+
+```text
+page=1&pageSize=20&companyId=uuid&status=UPCOMING&driveDate=2026-11-20&jobRole=Engineer&jobType=FULL_TIME
+```
+
+The response includes role summaries and pagination information.
+
+### Get a campus drive
+
+### `GET /api/drives/:id`
+
+Returns the company, complete role details, eligible departments, selection processes, and required skills.
+
+### Update a campus drive
+
+### `PATCH /api/drives/:id`
+
+Updates drive information only. Roles are not changed by this endpoint.
+
+```json
+{
+  "venue": "Lumina Campus, Bengaluru",
+  "status": "ONGOING"
+}
+```
+
+### Delete a campus drive
+
+### `DELETE /api/drives/:id`
+
+Permanently deletes the drive. Its roles and role junction records are deleted through cascade relationships.
+
+### Add a role to a campus drive
+
+### `POST /api/drives/:id/roles`
+
+Uses the same role payload as the `roles` array in the create-drive request.
+
+### Update a drive role
+
+### `PATCH /api/drives/:id/roles/:roleId`
+
+Updates only the selected role. Send only the fields that should change.
+
+```json
+{
+  "numberOfOpenings": 8,
+  "skillIds": ["skill-uuid-1", "skill-uuid-3"]
+}
+```
+
+### Delete a drive role
+
+### `DELETE /api/drives/:id/roles/:roleId`
+
+Deletes only the selected role and its department and skill links.
+
+### Campus drive enums
+
+Drive statuses:
+
+```text
+DRAFT, UPCOMING, ONGOING, COMPLETED, CANCELLED
+```
+
+Job types:
+
+```text
+FULL_TIME, PART_TIME, INTERNSHIP, CONTRACT, APPRENTICESHIP
+```
+
+Selection processes:
+
+```text
+ONLINE_ASSESSMENT, APTITUDE_TEST, TECHNICAL_TEST, GROUP_DISCUSSION,
+TECHNICAL_INTERVIEW, HR_INTERVIEW, MANAGERIAL_INTERVIEW, CASE_STUDY,
+CODING_ROUND, OTHER
+```
+
+`jdPdfUrl` accepts an existing PDF URL. No upload/storage provider exists in the current project, so PDF upload handling is not included.
+
 ## Common errors
 
 ### Missing required fields

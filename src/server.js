@@ -1,6 +1,8 @@
 import express from 'express';
 import prisma, { connectDatabase } from './db.js';
+import companyRoutes from './routes/companyRoutes.js';
 import departmentRoutes from './routes/departmentRoutes.js';
+import driveRoutes from './routes/driveRoutes.js';
 import skillRoutes from './routes/skillRoutes.js';
 import studentRoutes from './routes/studentRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -9,7 +11,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use('/api/companies', companyRoutes);
 app.use('/api/departments', departmentRoutes);
+app.use('/api/drives', driveRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/users', userRoutes);

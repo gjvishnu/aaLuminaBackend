@@ -13,8 +13,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-
 enum UserRole {
   STUDENT
   PLACEMENT_OFFICER
@@ -27,32 +25,61 @@ enum UserStatus {
   INACTIVE
 }
 
+enum CampusDriveStatus {
+  DRAFT
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+  APPRENTICESHIP
+}
+
+enum SelectionProcess {
+  ONLINE_ASSESSMENT
+  APTITUDE_TEST
+  TECHNICAL_TEST
+  GROUP_DISCUSSION
+  TECHNICAL_INTERVIEW
+  HR_INTERVIEW
+  MANAGERIAL_INTERVIEW
+  CASE_STUDY
+  CODING_ROUND
+  OTHER
+}
+
 model User {
-  userUuid  String   @id @default(uuid()) @db.Uuid
-  email     String   @unique
+  userUuid  String     @id @default(uuid()) @db.Uuid
+  email     String     @unique
   password  String
   role      UserRole
   status    UserStatus @default(ACTIVE)
   student   Student?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model Student {
-  id                 String   @id @default(uuid()) @db.Uuid
-  userUuid           String   @unique @db.Uuid
-  registrationNumber String   @unique @db.VarChar(50)
-  departmentId       String?  @db.Uuid
-  program            String?  @db.VarChar(150)
+  id                 String     @id @default(uuid()) @db.Uuid
+  userUuid           String     @unique @db.Uuid
+  registrationNumber String     @unique @db.VarChar(50)
+  departmentId       String?    @db.Uuid
+  program            String?    @db.VarChar(150)
   batch              Int?
   semester           Int?
-  phone              String?  @db.VarChar(20)
-  dateOfBirth        DateTime? @db.Date
-  location           String?  @db.VarChar(150)
+  phone              String?    @db.VarChar(20)
+  dateOfBirth        DateTime?  @db.Date
+  location           String?    @db.VarChar(150)
   status             UserStatus @default(ACTIVE)
 
-  user       User       @relation(fields: [userUuid], references: [userUuid], onDelete: Cascade)
-  department Department? @relation(fields: [departmentId], references: [id])
+  user       User           @relation(fields: [userUuid], references: [userUuid], onDelete: Cascade)
+  department Department?    @relation(fields: [departmentId], references: [id])
   skills     StudentSkill[]
 
   createdAt DateTime @default(now())
@@ -60,21 +87,23 @@ model Student {
 }
 
 model Department {
-  id         String    @id @default(uuid()) @db.Uuid
-  name       String    @unique @db.VarChar(150)
-  status     UserStatus @default(ACTIVE)
+  id         String                @id @default(uuid()) @db.Uuid
+  name       String                @unique @db.VarChar(150)
+  status     UserStatus            @default(ACTIVE)
   students   Student[]
-  createdAt  DateTime  @default(now())
+  driveRoles DriveRoleDepartment[]
+  createdAt  DateTime              @default(now())
 }
 
 model Skill {
-  id        String          @id @default(uuid()) @db.Uuid
-  skill     String          @unique @db.VarChar(100)
-  category  String          @db.VarChar(100)
-  domain    String          @db.VarChar(100)
-  status    UserStatus      @default(ACTIVE)
-  students  StudentSkill[]
-  createdAt DateTime        @default(now())
+  id         String           @id @default(uuid()) @db.Uuid
+  skill      String           @unique @db.VarChar(100)
+  category   String           @db.VarChar(100)
+  domain     String           @db.VarChar(100)
+  status     UserStatus       @default(ACTIVE)
+  students   StudentSkill[]
+  driveRoles DriveRoleSkill[]
+  createdAt  DateTime         @default(now())
 }
 
 model StudentSkill {
@@ -85,4 +114,80 @@ model StudentSkill {
   skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
   @@id([studentId, skillId])
+}
+
+model Company {
+  id        String        @id @default(uuid()) @db.Uuid
+  name      String        @db.VarChar(150)
+  website   String?       @db.VarChar(255)
+  location  String        @db.VarChar(150)
+  status    UserStatus    @default(ACTIVE)
+  drives    CampusDrive[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model CampusDrive {
+  id                  String            @id @default(uuid()) @db.Uuid
+  companyId           String            @db.Uuid
+  driveDate           DateTime          @db.Date
+  driveTime           String            @db.VarChar(5)
+  venue               String            @db.VarChar(255)
+  registrationEndDate DateTime?         @db.Date
+  status              CampusDriveStatus @default(DRAFT)
+  company             Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  roles               DriveRole[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([companyId])
+  @@index([driveDate])
+  @@index([status])
+}
+
+model DriveRole {
+  id                 String                @id @default(uuid()) @db.Uuid
+  driveId            String                @db.Uuid
+  jobRole            String                @db.VarChar(150)
+  jobLocation        String?               @db.VarChar(150)
+  jobType            JobType
+  ctcPackage         String                @db.VarChar(100)
+  numberOfOpenings   Int
+  graduationYears    Int[]
+  minimumCgpa        Decimal?              @db.Decimal(4, 2)
+  maximumBacklogs    Int?
+  degree             String?               @db.VarChar(150)
+  otherCriteria      String[]
+  jobDescription     String                @db.Text
+  jdPdfUrl           String?               @db.VarChar(500)
+  selectionProcesses SelectionProcess[]
+  drive              CampusDrive           @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  departments        DriveRoleDepartment[]
+  skills             DriveRoleSkill[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([driveId])
+  @@index([jobRole])
+  @@index([jobType])
+}
+
+model DriveRoleDepartment {
+  driveRoleId  String     @db.Uuid
+  departmentId String     @db.Uuid
+  driveRole    DriveRole  @relation(fields: [driveRoleId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  @@id([driveRoleId, departmentId])
+  @@index([departmentId])
+}
+
+model DriveRoleSkill {
+  driveRoleId String    @db.Uuid
+  skillId     String    @db.Uuid
+  driveRole   DriveRole @relation(fields: [driveRoleId], references: [id], onDelete: Cascade)
+  skill       Skill     @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@id([driveRoleId, skillId])
+  @@index([skillId])
 }
