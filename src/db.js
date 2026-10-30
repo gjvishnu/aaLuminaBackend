@@ -1,9 +1,13 @@
+import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { loadEnvFile } from 'node:process';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 
 const envPath = fileURLToPath(new URL('./.env', import.meta.url));
+const projectRoot = fileURLToPath(new URL('./', import.meta.url));
+const execFileAsync = promisify(execFile);
 
 if (existsSync(envPath)) {
   loadEnvFile(envPath);
@@ -31,6 +35,33 @@ if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(targetDatabaseName)) {
 const prisma = new PrismaClient();
 
 const quoteIdentifier = (identifier) => `"${identifier.replaceAll('"', '""')}"`;
+
+const applyMigrations = async () => {
+  const prismaCli = fileURLToPath(
+    new URL(
+      `./node_modules/.bin/prisma${process.platform === 'win32' ? '.cmd' : ''}`,
+      import.meta.url,
+    ),
+  );
+
+  const { stdout, stderr } = await execFileAsync(
+    prismaCli,
+    ['migrate', 'deploy'],
+    {
+      cwd: projectRoot,
+      env: process.env,
+      maxBuffer: 1024 * 1024,
+    },
+  );
+
+  if (stdout.trim()) {
+    console.log(stdout.trim());
+  }
+
+  if (stderr.trim()) {
+    console.error(stderr.trim());
+  }
+};
 
 export const connectDatabase = async () => {
   if (targetDatabaseName !== 'postgres') {
@@ -68,6 +99,7 @@ export const connectDatabase = async () => {
     }
   }
 
+  await applyMigrations();
   await prisma.$connect();
 };
 
