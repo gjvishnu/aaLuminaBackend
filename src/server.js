@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import prisma, { connectDatabase } from './db.js';
 import companyRoutes from './routes/companyRoutes.js';
 import departmentRoutes from './routes/departmentRoutes.js';
@@ -11,6 +12,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(
+  cors({
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }),
+);
 app.use('/api/companies', companyRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/drives', driveRoutes);
