@@ -159,7 +159,7 @@ model DriveRole {
   maximumBacklogs    Int?
   degree             String?               @db.VarChar(150)
   otherCriteria      String[]
-  jobDescription     String                @db.Text
+  jobDescription     String?               @db.Text
   jdPdfUrl           String?               @db.VarChar(500)
   selectionProcesses SelectionProcess[]
   drive              CampusDrive           @relation(fields: [driveId], references: [id], onDelete: Cascade)

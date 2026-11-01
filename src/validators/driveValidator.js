@@ -7,6 +7,8 @@ const uniqueArray = (schema) =>
   z.array(schema).refine((values) => new Set(values).size === values.length, {
     message: 'Duplicate values are not allowed',
   });
+const requiredArray = (schema, fieldName) =>
+  uniqueArray(schema).min(1, `${fieldName} must contain at least one value`);
 
 const isValidDateOnly = (value) => {
   const [year, month, day] = value.split('-').map(Number);
@@ -61,20 +63,26 @@ const departmentReference = nonEmptyString;
 
 export const driveRoleSchema = z.object({
   jobRole: nonEmptyString,
-  jobLocation: nonEmptyString.optional().nullable(),
+  jobLocation: nonEmptyString,
   jobType: z.enum(jobTypes),
   ctcPackage: nonEmptyString,
   numberOfOpenings: z.number().int().positive(),
-  departments: uniqueArray(departmentReference).default([]),
-  graduationYears: uniqueArray(z.number().int().min(1900).max(2200)).default([]),
-  minimumCgpa: z.number().min(0).max(10).optional().nullable(),
-  maximumBacklogs: z.number().int().min(0).optional().nullable(),
-  degree: nonEmptyString.optional().nullable(),
+  departments: requiredArray(departmentReference, 'departments'),
+  graduationYears: requiredArray(
+    z.number().int().min(1900).max(2200),
+    'graduationYears',
+  ),
+  minimumCgpa: z.number().min(0).max(10),
+  maximumBacklogs: z.number().int().min(0),
+  degree: nonEmptyString,
   otherCriteria: z.array(nonEmptyString).default([]),
-  jobDescription: nonEmptyString,
+  jobDescription: nonEmptyString.optional().nullable(),
   jdPdfUrl: z.string().url().optional().nullable(),
-  selectionProcesses: uniqueArray(z.enum(selectionProcesses)).default([]),
-  skillIds: uniqueArray(uuid).default([]),
+  selectionProcesses: requiredArray(
+    z.enum(selectionProcesses),
+    'selectionProcesses',
+  ),
+  skillIds: requiredArray(uuid, 'skillIds'),
 });
 
 export const createDriveSchema = z.object({
@@ -82,9 +90,9 @@ export const createDriveSchema = z.object({
   driveDate: dateValue,
   driveTime,
   venue: nonEmptyString,
-  registrationEndDate: dateValue.optional().nullable(),
-  status: z.enum(campusDriveStatuses).default('DRAFT'),
-  roles: z.array(driveRoleSchema).default([]),
+  registrationEndDate: dateValue,
+  status: z.enum(campusDriveStatuses),
+  roles: z.array(driveRoleSchema).min(1, 'At least one role is required'),
 });
 
 export const updateDriveSchema = z.object({

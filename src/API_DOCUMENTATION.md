@@ -451,12 +451,36 @@ POST /api/drives
 
 Required drive fields:
 
+Top-level drive fields:
+
 - `companyId`
 - `driveDate`
 - `driveTime`
 - `venue`
+- `registrationEndDate`
+- `status`
+- `roles` — must contain at least one role object
 
-`registrationEndDate` and `status` are optional. The default status is `DRAFT`.
+Required fields inside every `roles` object:
+
+- `jobRole`
+- `jobLocation`
+- `jobType`
+- `ctcPackage`
+- `numberOfOpenings`
+- `departments` — at least one value
+- `graduationYears` — at least one value
+- `minimumCgpa`
+- `maximumBacklogs`
+- `degree`
+- `selectionProcesses` — at least one value
+- `skillIds` — at least one value
+
+Optional fields inside a `roles` object:
+
+- `otherCriteria` — defaults to an empty array
+- `jobDescription`
+- `jdPdfUrl`
 
 One drive can contain multiple role objects in the `roles` array.
 
@@ -512,15 +536,7 @@ One drive can contain multiple role objects in the `roles` array.
 }
 ```
 
-Required fields inside every role:
-
-- `jobRole`
-- `jobType`
-- `ctcPackage`
-- `numberOfOpenings`
-- `jobDescription`
-
-Role array fields such as `departments`, `graduationYears`, `otherCriteria`, `selectionProcesses`, and `skillIds` can be empty. Department values can be existing department UUIDs or department names. Skill IDs must belong to existing active skills.
+The required array fields must contain at least one value. Department values can be existing department UUIDs or department names. Skill IDs must belong to existing active skills.
 
 ### List campus drives
 
