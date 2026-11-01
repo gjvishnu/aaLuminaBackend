@@ -666,6 +666,15 @@ Common error response:
 
 ```json
 {
-  "message": "Authentication required. Use Authorization: Bearer <access-token>"
+  "message": "Please log in first to continue."
 }
+```
+
+Other authentication messages:
+
+```text
+Your session has expired. Please log in again.
+We could not verify your login. Please log in again.
+Your account is inactive. Please contact the administrator.
+You do not have permission to access this feature.
 ```

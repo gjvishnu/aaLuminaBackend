@@ -200,12 +200,16 @@ export const refreshUserToken = async (req, res) => {
       },
     });
 
-    if (
-      !user ||
-      user.status !== 'ACTIVE' ||
-      payload.tokenVersion !== user.tokenVersion
-    ) {
-      return res.status(401).json({ message: 'Invalid or inactive user' });
+    if (!user || payload.tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({
+        message: 'Your refresh session is invalid or expired. Please log in again.',
+      });
+    }
+
+    if (user.status !== 'ACTIVE') {
+      return res.status(401).json({
+        message: 'Your account is inactive. Please contact the administrator.',
+      });
     }
 
     return res.status(200).json({
@@ -230,7 +234,9 @@ export const logoutUser = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 'P2025') {
-      return res.status(401).json({ message: 'Invalid or inactive user' });
+      return res.status(401).json({
+        message: 'Your account could not be found. Please log in again.',
+      });
     }
 
     console.error('Failed to logout user:', error.message);

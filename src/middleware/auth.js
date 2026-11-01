@@ -24,6 +24,14 @@ const refreshTokenExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 const jwtOptions = { algorithm: 'HS256' };
 
+const authMessages = {
+  loginRequired: 'Please log in first to continue.',
+  sessionExpired: 'Your session has expired. Please log in again.',
+  invalidSession: 'We could not verify your login. Please log in again.',
+  inactiveAccount: 'Your account is inactive. Please contact the administrator.',
+  accessDenied: 'You do not have permission to access this feature.',
+};
+
 const signToken = (user, secret, expiresIn, tokenType) =>
   jwt.sign(
     {
@@ -59,9 +67,7 @@ export const requireAuth = async (req, res, next) => {
   const token = getBearerToken(req);
 
   if (!token) {
-    return res.status(401).json({
-      message: 'Authentication required. Use Authorization: Bearer <access-token>',
-    });
+    return res.status(401).json({ message: authMessages.loginRequired });
   }
 
   try {
@@ -74,7 +80,7 @@ export const requireAuth = async (req, res, next) => {
       payload.tokenType !== 'access' ||
       typeof payload.sub !== 'string'
     ) {
-      return res.status(401).json({ message: 'Invalid access token' });
+      return res.status(401).json({ message: authMessages.invalidSession });
     }
 
     const user = await prisma.user.findUnique({
@@ -88,34 +94,32 @@ export const requireAuth = async (req, res, next) => {
       },
     });
 
-    if (
-      !user ||
-      user.status !== 'ACTIVE' ||
-      payload.tokenVersion !== user.tokenVersion
-    ) {
-      return res.status(401).json({ message: 'Invalid or inactive user' });
+    if (!user || payload.tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({ message: authMessages.invalidSession });
+    }
+
+    if (user.status !== 'ACTIVE') {
+      return res.status(401).json({ message: authMessages.inactiveAccount });
     }
 
     req.user = user;
     return next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Access token expired' });
+      return res.status(401).json({ message: authMessages.sessionExpired });
     }
 
-    return res.status(401).json({ message: 'Invalid access token' });
+    return res.status(401).json({ message: authMessages.invalidSession });
   }
 };
 
 export const authorizeRoles = (...allowedRoles) => (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ message: 'Authentication required' });
+    return res.status(401).json({ message: authMessages.loginRequired });
   }
 
   if (!allowedRoles.includes(req.user.role)) {
-    return res.status(403).json({
-      message: `Access denied. Required role: ${allowedRoles.join(' or ')}`,
-    });
+    return res.status(403).json({ message: authMessages.accessDenied });
   }
 
   return next();
