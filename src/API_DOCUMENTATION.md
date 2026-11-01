@@ -564,19 +564,80 @@ jobRole=Engineer
 jobType=FULL_TIME
 ```
 
+Each role is returned as a separate drive item. Shared drive and company fields are repeated for each item, and each item contains exactly one object in its `roles` array. Use the drive `id` and `roles[0].id` when editing or deleting a role.
+
 Example response:
 
 ```json
 {
-  "data": [],
+  "data": [
+    {
+      "id": "c90ff70b-bc5f-4273-85fd-56432c2c009a",
+      "companyId": "d579d734-fea7-4c6c-8ca3-ba7e800ee8bd",
+      "driveDate": "2026-11-13T00:00:00.000Z",
+      "driveTime": "11:05",
+      "venue": "Chennai",
+      "registrationEndDate": "2026-11-30T00:00:00.000Z",
+      "status": "ONGOING",
+      "createdAt": "2026-11-01T17:37:55.354Z",
+      "updatedAt": "2026-11-01T17:37:55.354Z",
+      "company": {
+        "id": "d579d734-fea7-4c6c-8ca3-ba7e800ee8bd",
+        "name": "Example Company",
+        "website": null,
+        "location": "Chennai",
+        "status": "ACTIVE"
+      },
+      "roles": [
+        {
+          "id": "1b103bfb-5b4b-4c23-b05c-97fb907c82d8",
+          "jobRole": "Software Engineer",
+          "jobLocation": "Chennai",
+          "jobType": "FULL_TIME",
+          "ctcPackage": "6 LPA",
+          "numberOfOpenings": 5
+        }
+      ]
+    },
+    {
+      "id": "c90ff70b-bc5f-4273-85fd-56432c2c009a",
+      "companyId": "d579d734-fea7-4c6c-8ca3-ba7e800ee8bd",
+      "driveDate": "2026-11-13T00:00:00.000Z",
+      "driveTime": "11:05",
+      "venue": "Chennai",
+      "registrationEndDate": "2026-11-30T00:00:00.000Z",
+      "status": "ONGOING",
+      "createdAt": "2026-11-01T17:37:55.354Z",
+      "updatedAt": "2026-11-01T17:37:55.354Z",
+      "company": {
+        "id": "d579d734-fea7-4c6c-8ca3-ba7e800ee8bd",
+        "name": "Example Company",
+        "website": null,
+        "location": "Chennai",
+        "status": "ACTIVE"
+      },
+      "roles": [
+        {
+          "id": "f7ef189b-e629-4c7a-ae5d-7883a5280900",
+          "jobRole": "Business Analyst",
+          "jobLocation": "Chennai",
+          "jobType": "INTERNSHIP",
+          "ctcPackage": "2 LPA",
+          "numberOfOpenings": 4
+        }
+      ]
+    }
+  ],
   "pagination": {
     "page": 1,
     "pageSize": 20,
-    "total": 0,
-    "totalPages": 0
+    "total": 2,
+    "totalPages": 1
   }
 }
 ```
+
+The detailed `GET /api/drives/:id` endpoint still returns one drive object with all roles in its `roles` array.
 
 ### Get a campus drive
 
@@ -623,6 +684,17 @@ Use one role object from the create-drive payload.
 PATCH /api/drives/:id/roles/:roleId
 ```
 
+When using the flattened `GET /api/drives` response:
+
+- `id` is the campus drive ID.
+- `roles[0].id` is the role ID.
+
+Use both values in the URL:
+
+```http
+PATCH /api/drives/{driveId}/roles/{roleId}
+```
+
 Send only the fields that need to change.
 
 ```json
@@ -636,6 +708,12 @@ Send only the fields that need to change.
 
 ```http
 DELETE /api/drives/:id/roles/:roleId
+```
+
+Use the same drive ID and role ID from the list response:
+
+```http
+DELETE /api/drives/{driveId}/roles/{roleId}
 ```
 
 This permanently deletes only the selected role and its department and skill links.

@@ -46,21 +46,6 @@ const driveDetailInclude = {
   },
 };
 
-const driveSummaryInclude = {
-  company: { select: companyFields },
-  roles: {
-    orderBy: { createdAt: 'asc' },
-    select: {
-      id: true,
-      jobRole: true,
-      jobLocation: true,
-      jobType: true,
-      ctcPackage: true,
-      numberOfOpenings: true,
-    },
-  },
-};
-
 const dateOnly = (value) => {
   const date = new Date(value);
   date.setUTCHours(0, 0, 0, 0);
@@ -265,43 +250,89 @@ export const listDrives = async (req, res) => {
       jobType,
     } = req.validatedQuery ?? req.query;
 
-    const where = {};
+    const driveWhere = {};
 
-    if (companyId) where.companyId = companyId;
-    if (status) where.status = status;
+    if (companyId) driveWhere.companyId = companyId;
+    if (status) driveWhere.status = status;
 
     if (driveDate || driveDateFrom || driveDateTo) {
-      where.driveDate = {};
+      driveWhere.driveDate = {};
       if (driveDate) {
-        where.driveDate.equals = dateOnly(driveDate);
+        driveWhere.driveDate.equals = dateOnly(driveDate);
       } else {
-        if (driveDateFrom) where.driveDate.gte = dateOnly(driveDateFrom);
-        if (driveDateTo) where.driveDate.lte = dateOnly(driveDateTo);
+        if (driveDateFrom) driveWhere.driveDate.gte = dateOnly(driveDateFrom);
+        if (driveDateTo) driveWhere.driveDate.lte = dateOnly(driveDateTo);
       }
     }
 
+    const roleWhere = { drive: driveWhere };
+
     if (jobRole || jobType) {
-      where.roles = {
-        some: {
-          ...(jobRole ? { jobRole: { contains: jobRole, mode: 'insensitive' } } : {}),
-          ...(jobType ? { jobType } : {}),
-        },
-      };
+      if (jobRole) roleWhere.jobRole = { contains: jobRole, mode: 'insensitive' };
+      if (jobType) roleWhere.jobType = jobType;
     }
 
-    const [total, drives] = await prisma.$transaction([
-      prisma.campusDrive.count({ where }),
-      prisma.campusDrive.findMany({
-        where,
-        include: driveSummaryInclude,
-        orderBy: [{ driveDate: 'asc' }, { driveTime: 'asc' }],
+    const [total, roles] = await prisma.$transaction([
+      prisma.driveRole.count({ where: roleWhere }),
+      prisma.driveRole.findMany({
+        where: roleWhere,
+        select: {
+          id: true,
+          jobRole: true,
+          jobLocation: true,
+          jobType: true,
+          ctcPackage: true,
+          numberOfOpenings: true,
+          drive: {
+            select: {
+              id: true,
+              companyId: true,
+              driveDate: true,
+              driveTime: true,
+              venue: true,
+              registrationEndDate: true,
+              status: true,
+              createdAt: true,
+              updatedAt: true,
+              company: { select: companyFields },
+            },
+          },
+        },
+        orderBy: [
+          { drive: { driveDate: 'asc' } },
+          { drive: { driveTime: 'asc' } },
+          { createdAt: 'asc' },
+        ],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
     ]);
 
+    const data = roles.map((role) => ({
+      id: role.drive.id,
+      companyId: role.drive.companyId,
+      driveDate: role.drive.driveDate,
+      driveTime: role.drive.driveTime,
+      venue: role.drive.venue,
+      registrationEndDate: role.drive.registrationEndDate,
+      status: role.drive.status,
+      createdAt: role.drive.createdAt,
+      updatedAt: role.drive.updatedAt,
+      company: role.drive.company,
+      roles: [
+        {
+          id: role.id,
+          jobRole: role.jobRole,
+          jobLocation: role.jobLocation,
+          jobType: role.jobType,
+          ctcPackage: role.ctcPackage,
+          numberOfOpenings: role.numberOfOpenings,
+        },
+      ],
+    }));
+
     return res.status(200).json({
-      data: drives,
+      data,
       pagination: {
         page,
         pageSize,
