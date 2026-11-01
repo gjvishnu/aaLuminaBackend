@@ -10,6 +10,7 @@ import {
   updateRole,
 } from '../controllers/driveController.js';
 import { requireDriveManager } from '../middleware/driveAuthorization.js';
+import { requireAuth } from '../middleware/auth.js';
 import { validateBody, validateParams, validateQuery } from '../middleware/validate.js';
 import {
   createDriveSchema,
@@ -23,8 +24,8 @@ import {
 
 const router = Router();
 
-router.get('/', validateQuery(driveQuerySchema), listDrives);
-router.get('/:id', validateParams(idParamsSchema), getDrive);
+router.get('/', requireAuth, validateQuery(driveQuerySchema), listDrives);
+router.get('/:id', requireAuth, validateParams(idParamsSchema), getDrive);
 
 router.post(
   '/',

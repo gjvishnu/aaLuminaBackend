@@ -1,4 +1,4 @@
-# API Documentation
+# Lumina Backend API Documentation
 
 Base URL:
 
@@ -6,17 +6,69 @@ Base URL:
 http://localhost:3000
 ```
 
-Start the server with:
+Start the server from the `src` folder:
 
 ```bash
-node server.js
+yarn node server.js
 ```
 
-## Health Check
+All request bodies must use JSON:
+
+```http
+Content-Type: application/json
+```
+
+## Authentication
+
+`POST /api/users/login` and `POST /api/users/refresh` are public. All other business APIs require a valid access token.
+
+Send the access token exactly like this:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+Do not send only the raw JWT. The `Bearer` prefix is required.
+
+The login response includes an access token and a refresh token. Access tokens expire after 15 minutes by default. Refresh tokens expire after 7 days by default.
+
+Configure these values in `.env`:
+
+```env
+JWT_ACCESS_SECRET=your-access-secret
+JWT_REFRESH_SECRET=your-refresh-secret
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
+```
+
+After logout, both the access token and refresh token for that user are invalidated.
+
+### Role permissions
+
+| Role | Main access |
+|---|---|
+| `ADMIN` | Full access, including user CRUD |
+| `PLACEMENT_OFFICER` | Manage departments, companies, students, and campus drives |
+| `STUDENT` | Authenticated read access and complete skill CRUD |
+| `RECRUITER` | Authenticated read access and complete skill CRUD |
+
+The detailed permissions are listed with each API below.
+
+## Health APIs
+
+### `GET /`
+
+Public server check.
+
+Example response:
+
+```text
+Express server is running
+```
 
 ### `GET /health`
 
-Checks whether the server is running.
+Public health check.
 
 Example response:
 
@@ -28,42 +80,105 @@ Example response:
 
 ## Users
 
-### Get all users
+Login and refresh are public. User CRUD APIs require an `ADMIN` access token.
 
-### `GET /api/users`
+### Login
 
-Example response:
-
-```json
-[
-  {
-    "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
-    "email": "user@example.com",
-    "role": "STUDENT",
-    "status": "ACTIVE",
-    "createdAt": "2026-10-27T18:56:42.858Z",
-    "updatedAt": "2026-10-27T18:56:42.858Z"
-  }
-]
-```
-
-### Create a user
-
-### `POST /api/users`
-
-Request header:
-
-```text
-Content-Type: application/json
+```http
+POST /api/users/login
 ```
 
 Request body:
 
-All fields below are required.
-
 ```json
 {
   "email": "user@example.com",
+  "password": "your-password"
+}
+```
+
+Example response:
+
+```json
+{
+  "message": "Login successful",
+  "user": {
+    "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
+    "email": "user@example.com",
+    "role": "ADMIN",
+    "status": "ACTIVE",
+    "createdAt": "2026-10-27T18:56:42.858Z",
+    "updatedAt": "2026-10-27T18:56:42.858Z"
+  },
+  "accessToken": "<access-token>",
+  "refreshToken": "<refresh-token>",
+  "tokenType": "Bearer"
+}
+```
+
+Invalid credentials or an inactive user return `401`.
+
+### Refresh tokens
+
+```http
+POST /api/users/refresh
+```
+
+Request body:
+
+```json
+{
+  "refreshToken": "<refresh-token>"
+}
+```
+
+Example response:
+
+```json
+{
+  "accessToken": "<new-access-token>",
+  "refreshToken": "<new-refresh-token>",
+  "tokenType": "Bearer"
+}
+```
+
+### Logout
+
+```http
+POST /api/users/logout
+```
+
+Required header:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+Example response:
+
+```json
+{
+  "message": "Logout successful. All active tokens have been invalidated."
+}
+```
+
+### Get all users — `ADMIN` only
+
+```http
+GET /api/users
+```
+
+### Create a user — `ADMIN` only
+
+```http
+POST /api/users
+```
+
+Required fields:
+
+```json
+{
+  "email": "student@example.com",
   "password": "password123",
   "role": "STUDENT"
 }
@@ -78,73 +193,48 @@ ADMIN
 RECRUITER
 ```
 
-Example response:
+### Edit a user — `ADMIN` only
+
+```http
+PUT /api/users/:userUuid
+```
+
+Send one or more fields:
 
 ```json
 {
-  "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
-  "email": "user@example.com",
-  "role": "STUDENT",
-  "status": "ACTIVE",
-  "createdAt": "2026-10-27T18:56:42.858Z",
-  "updatedAt": "2026-10-27T18:56:42.858Z"
+  "email": "new-email@example.com",
+  "password": "newPassword123",
+  "role": "PLACEMENT_OFFICER",
+  "status": "ACTIVE"
 }
 ```
 
-The password is stored securely and is not included in the response.
+`status` can be `ACTIVE` or `INACTIVE`.
 
-### Deactivate a user
+### Deactivate a user — `ADMIN` only
 
-### `DELETE /api/users/:userUuid`
-
-This does not permanently delete the user. It changes the user's status from `ACTIVE` to `INACTIVE`.
-
-Example URL:
-
-```text
-DELETE /api/users/30f33c17-a7c1-44e7-a58f-f23c0437bc86
+```http
+DELETE /api/users/:userUuid
 ```
 
-Example response:
-
-```json
-{
-  "message": "User marked as inactive",
-  "user": {
-    "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
-    "email": "user@example.com",
-    "role": "STUDENT",
-    "status": "INACTIVE",
-    "createdAt": "2026-10-27T18:56:42.858Z",
-    "updatedAt": "2026-10-27T18:56:42.858Z"
-  }
-}
-```
+This is a soft delete. The record remains in the database and its status becomes `INACTIVE`.
 
 ## Departments
 
-### Get all departments
+All authenticated roles can get departments. Only `ADMIN` and `PLACEMENT_OFFICER` can create, edit, or deactivate departments.
 
-### `GET /api/departments`
+### Get departments
 
-Example response:
-
-```json
-[
-  {
-    "id": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
-    "name": "Computer Science",
-    "status": "ACTIVE",
-    "createdAt": "2026-10-28T10:00:00.000Z"
-  }
-]
+```http
+GET /api/departments
 ```
 
 ### Create a department
 
-### `POST /api/departments`
-
-All fields below are required.
+```http
+POST /api/departments
+```
 
 ```json
 {
@@ -152,63 +242,43 @@ All fields below are required.
 }
 ```
 
-Example response:
+### Edit a department
+
+```http
+PUT /api/departments/:id
+```
 
 ```json
 {
-  "id": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
-  "name": "Computer Science",
-  "status": "ACTIVE",
-  "createdAt": "2026-10-28T10:00:00.000Z"
+  "name": "Information Technology"
 }
 ```
 
 ### Deactivate a department
 
-### `DELETE /api/departments/:id`
-
-This changes the department status to `INACTIVE`. It does not permanently delete the record.
-
-Example response:
-
-```json
-{
-  "message": "Department marked as inactive",
-  "department": {
-    "id": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
-    "name": "Computer Science",
-    "status": "INACTIVE",
-    "createdAt": "2026-10-28T10:00:00.000Z"
-  }
-}
+```http
+DELETE /api/departments/:id
 ```
+
+This changes the department status to `INACTIVE`.
 
 ## Skills
 
-### Get all skills
+All authenticated roles can use all skill APIs.
 
-### `GET /api/skills`
+### Get skills
 
-Example response:
-
-```json
-[
-  {
-    "id": "f3a1b2c4-8d6e-4f10-9a2b-5c7d8e9f0123",
-    "skill": "JavaScript",
-    "category": "Programming",
-    "domain": "Web Development",
-    "status": "ACTIVE",
-    "createdAt": "2026-10-28T10:00:00.000Z"
-  }
-]
+```http
+GET /api/skills
 ```
 
 ### Create a skill
 
-### `POST /api/skills`
+```http
+POST /api/skills
+```
 
-All fields below are required.
+All fields are required:
 
 ```json
 {
@@ -218,252 +288,181 @@ All fields below are required.
 }
 ```
 
-Example response:
+### Edit a skill
+
+```http
+PUT /api/skills/:id
+```
 
 ```json
 {
-  "id": "f3a1b2c4-8d6e-4f10-9a2b-5c7d8e9f0123",
-  "skill": "JavaScript",
+  "skill": "Node.js",
   "category": "Programming",
-  "domain": "Web Development",
-  "status": "ACTIVE",
-  "createdAt": "2026-10-28T10:00:00.000Z"
+  "domain": "Backend Development"
 }
 ```
 
 ### Deactivate a skill
 
-### `DELETE /api/skills/:id`
-
-This changes the skill status to `INACTIVE`. It does not permanently delete the record.
-
-Example response:
-
-```json
-{
-  "message": "Skill marked as inactive",
-  "skill": {
-    "id": "f3a1b2c4-8d6e-4f10-9a2b-5c7d8e9f0123",
-    "skill": "JavaScript",
-    "category": "Programming",
-    "domain": "Web Development",
-    "status": "INACTIVE",
-    "createdAt": "2026-10-28T10:00:00.000Z"
-  }
-}
+```http
+DELETE /api/skills/:id
 ```
+
+This changes the skill status to `INACTIVE`.
 
 ## Students
 
-### Get all students
+Only `ADMIN` and `PLACEMENT_OFFICER` can access student APIs. Student creation and editing still require the `userUuid` to belong to an active user with the `STUDENT` role.
 
-### `GET /api/students`
+### Get students
 
-No user-role validation is required for this endpoint.
-
-Example response:
-
-```json
-[
-  {
-    "id": "f3a1b2c4-8d6e-4f10-9a2b-5c7d8e9f0123",
-    "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
-    "registrationNumber": "CS2026001",
-    "departmentId": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
-    "program": null,
-    "batch": null,
-    "semester": null,
-    "phone": null,
-    "dateOfBirth": null,
-    "location": null,
-    "status": "ACTIVE",
-    "createdAt": "2026-10-28T10:00:00.000Z",
-    "updatedAt": "2026-10-28T10:00:00.000Z"
-  }
-]
+```http
+GET /api/students
 ```
 
 ### Create a student
 
-### `POST /api/students`
+```http
+POST /api/students
+```
 
-The `userUuid` is required for validation. That user must exist, be active, and have the `STUDENT` role.
-
-`registrationNumber` is the only required student-data field. The `departmentId` is stored as the department UUID.
+Required fields:
 
 ```json
 {
-  "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
-  "registrationNumber": "CS2026001",
-  "departmentId": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
-  "program": "Computer Science",
-  "batch": 2026,
-  "semester": 1,
-  "phone": "9876543210",
-  "dateOfBirth": "2004-05-10",
-  "location": "Bengaluru"
+  "userUuid": "student-user-uuid",
+  "registrationNumber": "LM2026001"
 }
 ```
 
-Example response:
+Optional fields:
 
 ```json
 {
-  "id": "f3a1b2c4-8d6e-4f10-9a2b-5c7d8e9f0123",
-  "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
-  "registrationNumber": "CS2026001",
-  "departmentId": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
-  "program": "Computer Science",
+  "departmentId": "department-uuid",
+  "program": "B.E Computer Science",
   "batch": 2026,
-  "semester": 1,
+  "semester": 8,
   "phone": "9876543210",
-  "dateOfBirth": "2004-05-10T00:00:00.000Z",
-  "location": "Bengaluru",
-  "status": "ACTIVE",
-  "createdAt": "2026-10-28T10:00:00.000Z",
-  "updatedAt": "2026-10-28T10:00:00.000Z"
+  "dateOfBirth": "2004-05-10",
+  "location": "Chennai"
+}
+```
+
+Complete example:
+
+```json
+{
+  "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
+  "registrationNumber": "LM2026001",
+  "departmentId": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
+  "program": "B.E Computer Science",
+  "batch": 2026,
+  "semester": 8,
+  "phone": "9876543210",
+  "dateOfBirth": "2004-05-10",
+  "location": "Chennai"
 }
 ```
 
 ### Edit a student
 
-### `PUT /api/students/:id`
+```http
+PUT /api/students/:id
+```
 
-The `userUuid` is required and must belong to an active user with the `STUDENT` role. Include only the fields that need to change.
+`userUuid` is required in the request body. Other fields are optional.
 
 ```json
 {
   "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
-  "semester": 2,
-  "location": "Chennai"
+  "semester": 8,
+  "location": "Bengaluru"
 }
 ```
 
 ### Deactivate a student
 
-### `DELETE /api/students/:id`
-
-No user-role validation is required. This changes the student status to `INACTIVE` and does not permanently delete the record.
-
-Example response:
-
-```json
-{
-  "message": "Student marked as inactive",
-  "student": {
-    "id": "f3a1b2c4-8d6e-4f10-9a2b-5c7d8e9f0123",
-    "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
-    "registrationNumber": "CS2026001",
-    "status": "INACTIVE"
-  }
-}
+```http
+DELETE /api/students/:id
 ```
+
+This changes the student status to `INACTIVE`.
 
 ## Companies
 
-### Get all companies
+All authenticated roles can get companies. Only `ADMIN` and `PLACEMENT_OFFICER` can create, edit, or deactivate companies.
 
-### `GET /api/companies`
+### Get companies
 
-Example response:
-
-```json
-[
-  {
-    "id": "7a4c2f10-9d31-4e6b-8f20-1c5b6a7d8e90",
-    "name": "Example Technologies",
-    "website": "https://example.com",
-    "location": "Bengaluru",
-    "status": "ACTIVE",
-    "createdAt": "2026-10-29T10:00:00.000Z",
-    "updatedAt": "2026-10-29T10:00:00.000Z"
-  }
-]
+```http
+GET /api/companies
 ```
 
 ### Create a company
 
-### `POST /api/companies`
-
-`name` and `location` are required. `website` is optional.
-
-```json
-{
-  "name": "Example Technologies",
-  "website": "https://example.com",
-  "location": "Bengaluru"
-}
+```http
+POST /api/companies
 ```
 
-Example response:
+Required fields are `name` and `location`. `website` is optional.
 
 ```json
 {
-  "id": "7a4c2f10-9d31-4e6b-8f20-1c5b6a7d8e90",
-  "name": "Example Technologies",
-  "website": "https://example.com",
-  "location": "Bengaluru",
-  "status": "ACTIVE",
-  "createdAt": "2026-10-29T10:00:00.000Z",
-  "updatedAt": "2026-10-29T10:00:00.000Z"
+  "name": "Lumina Technologies",
+  "website": "https://lumina.example.com",
+  "location": "Chennai"
 }
 ```
 
 ### Edit a company
 
-### `PUT /api/companies/:id`
+```http
+PUT /api/companies/:id
+```
 
-Send only the fields that need to change.
+Send one or more fields:
 
 ```json
 {
-  "location": "Chennai",
-  "website": "https://new-example.com"
+  "name": "Lumina Technologies Pvt Ltd",
+  "website": "https://lumina.example.com",
+  "location": "Bengaluru"
 }
 ```
 
 ### Deactivate a company
 
-### `DELETE /api/companies/:id`
-
-This changes the company status to `INACTIVE`. It does not permanently delete the record.
-
-Example response:
-
-```json
-{
-  "message": "Company marked as inactive",
-  "company": {
-    "id": "7a4c2f10-9d31-4e6b-8f20-1c5b6a7d8e90",
-    "name": "Example Technologies",
-    "website": "https://example.com",
-    "location": "Bengaluru",
-    "status": "INACTIVE",
-    "createdAt": "2026-10-29T10:00:00.000Z",
-    "updatedAt": "2026-10-29T10:00:00.000Z"
-  }
-}
+```http
+DELETE /api/companies/:id
 ```
+
+This changes the company status to `INACTIVE`.
 
 ## Campus Drives
 
-Protected campus-drive write endpoints require the ID of an active `PLACEMENT_OFFICER` or `ADMIN` user in this header:
-
-```text
-x-user-id: user-uuid
-```
-
-The project does not currently contain a token or session authentication system. This header is the integration point for the existing authentication middleware when it is added.
+All authenticated roles can list and view campus drives. Only `ADMIN` and `PLACEMENT_OFFICER` can create, edit, delete, and manage drive roles.
 
 ### Create a campus drive
 
-### `POST /api/drives`
+```http
+POST /api/drives
+```
 
-Creates a drive, its roles, department eligibility links, and skill links in one transaction.
+Required drive fields:
+
+- `companyId`
+- `driveDate`
+- `driveTime`
+- `venue`
+
+`registrationEndDate` and `status` are optional. The default status is `DRAFT`.
+
+One drive can contain multiple role objects in the `roles` array.
 
 ```json
 {
-  "companyId": "7a4c2f10-9d31-4e6b-8f20-1c5b6a7d8e90",
+  "companyId": "company-uuid",
   "driveDate": "2026-11-20T00:00:00.000Z",
   "driveTime": "10:30",
   "venue": "Lumina Campus, Chennai",
@@ -472,7 +471,7 @@ Creates a drive, its roles, department eligibility links, and skill links in one
   "roles": [
     {
       "jobRole": "Software Engineer",
-      "jobLocation": "Bangalore",
+      "jobLocation": "Bengaluru",
       "jobType": "FULL_TIME",
       "ctcPackage": "6 LPA",
       "numberOfOpenings": 5,
@@ -491,36 +490,87 @@ Creates a drive, its roles, department eligibility links, and skill links in one
         "HR_INTERVIEW"
       ],
       "skillIds": ["skill-uuid-1", "skill-uuid-2"]
+    },
+    {
+      "jobRole": "Business Analyst",
+      "jobLocation": "Chennai",
+      "jobType": "FULL_TIME",
+      "ctcPackage": "5 LPA",
+      "numberOfOpenings": 3,
+      "departments": ["CSE", "ECE"],
+      "graduationYears": [2026],
+      "minimumCgpa": 6,
+      "maximumBacklogs": 0,
+      "degree": "Bachelor's degree",
+      "otherCriteria": [],
+      "jobDescription": "Analyze business requirements and prepare reports.",
+      "jdPdfUrl": null,
+      "selectionProcesses": ["APTITUDE_TEST", "CASE_STUDY", "HR_INTERVIEW"],
+      "skillIds": ["skill-uuid-3", "skill-uuid-4"]
     }
   ]
 }
 ```
 
-`departments` accepts existing department UUIDs or exact department names. `skillIds` must contain existing skill UUIDs.
+Required fields inside every role:
+
+- `jobRole`
+- `jobType`
+- `ctcPackage`
+- `numberOfOpenings`
+- `jobDescription`
+
+Role array fields such as `departments`, `graduationYears`, `otherCriteria`, `selectionProcesses`, and `skillIds` can be empty. Department values can be existing department UUIDs or department names. Skill IDs must belong to existing active skills.
 
 ### List campus drives
 
-### `GET /api/drives`
+```http
+GET /api/drives
+```
 
 Optional query parameters:
 
 ```text
-page=1&pageSize=20&companyId=uuid&status=UPCOMING&driveDate=2026-11-20&jobRole=Engineer&jobType=FULL_TIME
+page=1
+pageSize=20
+companyId=company-uuid
+status=UPCOMING
+driveDate=2026-11-20
+driveDateFrom=2026-11-01
+driveDateTo=2026-11-30
+jobRole=Engineer
+jobType=FULL_TIME
 ```
 
-The response includes role summaries and pagination information.
+Example response:
+
+```json
+{
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 0,
+    "totalPages": 0
+  }
+}
+```
 
 ### Get a campus drive
 
-### `GET /api/drives/:id`
+```http
+GET /api/drives/:id
+```
 
-Returns the company, complete role details, eligible departments, selection processes, and required skills.
+Returns company details, all roles, eligibility criteria, departments, selection processes, and skills.
 
-### Update a campus drive
+### Edit a campus drive
 
-### `PATCH /api/drives/:id`
+```http
+PATCH /api/drives/:id
+```
 
-Updates drive information only. Roles are not changed by this endpoint.
+This updates drive fields only. It does not replace the roles array.
 
 ```json
 {
@@ -531,21 +581,27 @@ Updates drive information only. Roles are not changed by this endpoint.
 
 ### Delete a campus drive
 
-### `DELETE /api/drives/:id`
+```http
+DELETE /api/drives/:id
+```
 
-Permanently deletes the drive. Its roles and role junction records are deleted through cascade relationships.
+This permanently deletes the drive and its associated roles and junction records.
 
-### Add a role to a campus drive
+### Add a role to an existing drive
 
-### `POST /api/drives/:id/roles`
+```http
+POST /api/drives/:id/roles
+```
 
-Uses the same role payload as the `roles` array in the create-drive request.
+Use one role object from the create-drive payload.
 
-### Update a drive role
+### Edit a drive role
 
-### `PATCH /api/drives/:id/roles/:roleId`
+```http
+PATCH /api/drives/:id/roles/:roleId
+```
 
-Updates only the selected role. Send only the fields that should change.
+Send only the fields that need to change.
 
 ```json
 {
@@ -556,56 +612,60 @@ Updates only the selected role. Send only the fields that should change.
 
 ### Delete a drive role
 
-### `DELETE /api/drives/:id/roles/:roleId`
+```http
+DELETE /api/drives/:id/roles/:roleId
+```
 
-Deletes only the selected role and its department and skill links.
+This permanently deletes only the selected role and its department and skill links.
 
-### Campus drive enums
+### Campus drive enum values
 
-Drive statuses:
+Drive status:
 
 ```text
 DRAFT, UPCOMING, ONGOING, COMPLETED, CANCELLED
 ```
 
-Job types:
+Job type:
 
 ```text
 FULL_TIME, PART_TIME, INTERNSHIP, CONTRACT, APPRENTICESHIP
 ```
 
-Selection processes:
+Selection process:
 
 ```text
-ONLINE_ASSESSMENT, APTITUDE_TEST, TECHNICAL_TEST, GROUP_DISCUSSION,
-TECHNICAL_INTERVIEW, HR_INTERVIEW, MANAGERIAL_INTERVIEW, CASE_STUDY,
-CODING_ROUND, OTHER
+ONLINE_ASSESSMENT
+APTITUDE_TEST
+TECHNICAL_TEST
+GROUP_DISCUSSION
+TECHNICAL_INTERVIEW
+HR_INTERVIEW
+MANAGERIAL_INTERVIEW
+CASE_STUDY
+CODING_ROUND
+OTHER
 ```
 
-`jdPdfUrl` accepts an existing PDF URL. No upload/storage provider exists in the current project, so PDF upload handling is not included.
+`jdPdfUrl` accepts a PDF URL. PDF binary upload is not currently implemented.
 
-## Common errors
+## Common response codes
 
-### Missing required fields
+| Status | Meaning |
+|---|---|
+| `200` | Request succeeded |
+| `201` | Record created |
+| `400` | Invalid payload, parameter, or enum value |
+| `401` | Missing, invalid, expired, or invalidated token |
+| `403` | Token is valid but the role is not allowed |
+| `404` | Record not found |
+| `409` | Duplicate record |
+| `500` | Unexpected server error |
+
+Common error response:
 
 ```json
 {
-  "message": "Email, password, and role are required"
-}
-```
-
-### Email already exists
-
-```json
-{
-  "message": "Email is already registered"
-}
-```
-
-### User not found
-
-```json
-{
-  "message": "User not found"
+  "message": "Authentication required. Use Authorization: Bearer <access-token>"
 }
 ```

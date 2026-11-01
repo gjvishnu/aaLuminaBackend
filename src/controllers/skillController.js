@@ -60,6 +60,49 @@ export const createSkill = async (req, res) => {
   }
 };
 
+export const updateSkill = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { skill, category, domain } = req.body;
+
+    if (
+      typeof skill !== 'string' ||
+      !skill.trim() ||
+      typeof category !== 'string' ||
+      !category.trim() ||
+      typeof domain !== 'string' ||
+      !domain.trim()
+    ) {
+      return res.status(400).json({
+        message: 'Skill, category, and domain are required',
+      });
+    }
+
+    const updatedSkill = await prisma.skill.update({
+      where: { id },
+      data: {
+        skill: skill.trim(),
+        category: category.trim(),
+        domain: domain.trim(),
+      },
+      select: publicSkillFields,
+    });
+
+    return res.status(200).json(updatedSkill);
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Skill already exists' });
+    }
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Skill not found' });
+    }
+
+    console.error('Failed to update skill:', error.message);
+    return res.status(500).json({ message: 'Failed to update skill' });
+  }
+};
+
 export const deleteSkill = async (req, res) => {
   try {
     const { id } = req.params;

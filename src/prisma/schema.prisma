@@ -55,14 +55,15 @@ enum SelectionProcess {
 }
 
 model User {
-  userUuid  String     @id @default(uuid()) @db.Uuid
-  email     String     @unique
-  password  String
-  role      UserRole
-  status    UserStatus @default(ACTIVE)
-  student   Student?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  userUuid     String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  password     String
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  tokenVersion Int        @default(0)
+  student      Student?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 }
 
 model Student {
