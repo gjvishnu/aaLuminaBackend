@@ -30,14 +30,14 @@ Authorization: Bearer <access-token>
 
 Do not send only the raw JWT. The `Bearer` prefix is required.
 
-The login response includes an access token and a refresh token. Access tokens expire after 15 minutes by default. Refresh tokens expire after 7 days by default.
+The login response includes an access token and a refresh token. Access tokens expire after 30 minutes by default. Refresh tokens expire after 7 days by default.
 
 Configure these values in `.env`:
 
 ```env
 JWT_ACCESS_SECRET=your-access-secret
 JWT_REFRESH_SECRET=your-refresh-secret
-JWT_ACCESS_EXPIRES_IN=15m
+JWT_ACCESS_EXPIRES_IN=30m
 JWT_REFRESH_EXPIRES_IN=7d
 ```
 

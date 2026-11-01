@@ -19,7 +19,7 @@ const getSecret = (name) => {
 
 const accessSecret = getSecret('JWT_ACCESS_SECRET');
 const refreshSecret = getSecret('JWT_REFRESH_SECRET');
-const accessTokenExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
+const accessTokenExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || '30m';
 const refreshTokenExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 const jwtOptions = { algorithm: 'HS256' };
