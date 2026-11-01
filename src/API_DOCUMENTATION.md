@@ -499,7 +499,10 @@ One drive can contain multiple role objects in the `roles` array.
       "jobType": "FULL_TIME",
       "ctcPackage": "6 LPA",
       "numberOfOpenings": 5,
-      "departments": ["CSE", "IT"],
+      "departments": [
+        "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
+        "9c7d4f31-3f25-5c55-af4c-8b9e3d2f6b21"
+      ],
       "graduationYears": [2026, 2027],
       "minimumCgpa": 7,
       "maximumBacklogs": 0,
@@ -521,7 +524,10 @@ One drive can contain multiple role objects in the `roles` array.
       "jobType": "FULL_TIME",
       "ctcPackage": "5 LPA",
       "numberOfOpenings": 3,
-      "departments": ["CSE", "ECE"],
+      "departments": [
+        "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
+        "9c7d4f31-3f25-5c55-af4c-8b9e3d2f6b21"
+      ],
       "graduationYears": [2026],
       "minimumCgpa": 6,
       "maximumBacklogs": 0,
@@ -536,7 +542,7 @@ One drive can contain multiple role objects in the `roles` array.
 }
 ```
 
-The required array fields must contain at least one value. Department values can be existing department UUIDs or department names. Skill IDs must belong to existing active skills.
+The required array fields must contain at least one value. Every department value must be an existing active department UUID from `/api/departments`. Skill IDs must belong to existing active skills.
 
 ### List campus drives
 

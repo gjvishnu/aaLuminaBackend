@@ -59,7 +59,7 @@ const driveTime = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, {
   message: 'driveTime must use HH:mm format',
 });
 
-const departmentReference = nonEmptyString;
+const departmentReference = uuid;
 
 export const driveRoleSchema = z.object({
   jobRole: nonEmptyString,

@@ -61,12 +61,6 @@ const driveSummaryInclude = {
   },
 };
 
-const isUuid = (value) =>
-  typeof value === 'string' &&
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value,
-  );
-
 const dateOnly = (value) => {
   const date = new Date(value);
   date.setUTCHours(0, 0, 0, 0);
@@ -117,22 +111,17 @@ const ensureCompany = async (tx, companyId) => {
   }
 };
 
-const resolveDepartmentIds = async (tx, references) => {
-  const departmentIds = [];
+const resolveDepartmentIds = async (tx, departmentIds) => {
+  const departments = await tx.department.findMany({
+    where: { id: { in: departmentIds }, status: 'ACTIVE' },
+    select: { id: true },
+  });
 
-  for (const reference of references) {
-    const department = await tx.department.findFirst({
-      where: isUuid(reference)
-        ? { id: reference, status: 'ACTIVE' }
-        : { name: { equals: reference, mode: 'insensitive' }, status: 'ACTIVE' },
-      select: { id: true },
-    });
+  const found = new Set(departments.map((department) => department.id));
+  const missing = departmentIds.find((departmentId) => !found.has(departmentId));
 
-    if (!department) {
-      throw new DriveInputError(`Active department not found: ${reference}`, 404);
-    }
-
-    departmentIds.push(department.id);
+  if (missing) {
+    throw new DriveInputError(`Active department not found: ${missing}`, 404);
   }
 
   return departmentIds;
