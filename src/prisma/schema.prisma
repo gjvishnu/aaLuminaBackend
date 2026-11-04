@@ -71,7 +71,7 @@ model Student {
   userUuid           String     @unique @db.Uuid
   registrationNumber String     @unique @db.VarChar(50)
   departmentId       String?    @db.Uuid
-  program            String?    @db.VarChar(150)
+  degreeId           String?    @db.Uuid
   batch              Int?
   semester           Int?
   phone              String?    @db.VarChar(20)
@@ -81,10 +81,53 @@ model Student {
 
   user       User           @relation(fields: [userUuid], references: [userUuid], onDelete: Cascade)
   department Department?    @relation(fields: [departmentId], references: [id])
+  degree     Degree?        @relation(fields: [degreeId], references: [id])
   skills     StudentSkill[]
+  internships Internship[]
+  projects    Project[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Internship {
+  id          String    @id @default(uuid()) @db.Uuid
+  studentId   String    @db.Uuid
+  title       String    @db.VarChar(150)
+  companyName String    @db.VarChar(150)
+  startDate   DateTime  @db.Date
+  endDate     DateTime? @db.Date
+  description String    @db.Text
+  isVerified  Boolean   @default(false)
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([studentId])
+}
+
+model Project {
+  id           String         @id @default(uuid()) @db.Uuid
+  studentId    String         @db.Uuid
+  title        String         @db.VarChar(150)
+  projectType  String         @db.VarChar(100)
+  description  String         @db.Text
+  technologies ProjectSkill[]
+  student      Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([studentId])
+}
+
+model ProjectSkill {
+  projectId String  @db.Uuid
+  skillId   String  @db.Uuid
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skill     Skill   @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@id([projectId, skillId])
+  @@index([skillId])
 }
 
 model Department {
@@ -96,6 +139,14 @@ model Department {
   createdAt  DateTime              @default(now())
 }
 
+model Degree {
+  id         String     @id @default(uuid()) @db.Uuid
+  degreeName String     @unique @db.VarChar(150)
+  status     UserStatus @default(ACTIVE)
+  students   Student[]
+  createdAt  DateTime   @default(now())
+}
+
 model Skill {
   id         String           @id @default(uuid()) @db.Uuid
   skill      String           @unique @db.VarChar(100)
@@ -104,6 +155,7 @@ model Skill {
   status     UserStatus       @default(ACTIVE)
   students   StudentSkill[]
   driveRoles DriveRoleSkill[]
+  projects   ProjectSkill[]
   createdAt  DateTime         @default(now())
 }
 

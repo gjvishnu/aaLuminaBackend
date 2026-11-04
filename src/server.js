@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import prisma, { connectDatabase } from './db.js';
 import companyRoutes from './routes/companyRoutes.js';
+import degreeRoutes from './routes/degreeRoutes.js';
 import departmentRoutes from './routes/departmentRoutes.js';
 import driveRoutes from './routes/driveRoutes.js';
 import skillRoutes from './routes/skillRoutes.js';
@@ -23,6 +24,7 @@ app.use(
   }),
 );
 app.use('/api/companies', companyRoutes);
+app.use('/api/degrees', degreeRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/drives', driveRoutes);
 app.use('/api/skills', skillRoutes);

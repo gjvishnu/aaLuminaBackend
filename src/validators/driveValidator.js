@@ -125,6 +125,7 @@ export const updateRoleSchema = z.object({
 export const driveQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().trim().max(150).optional(),
   companyId: uuid.optional(),
   status: z.enum(campusDriveStatuses).optional(),
   driveDate: queryDate.optional(),

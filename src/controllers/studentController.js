@@ -5,7 +5,7 @@ const publicStudentFields = {
   userUuid: true,
   registrationNumber: true,
   departmentId: true,
-  program: true,
+  degreeId: true,
   batch: true,
   semester: true,
   phone: true,
@@ -46,6 +46,23 @@ const validateStudentUser = async (userUuid) => {
   return null;
 };
 
+const validateDegree = async (degreeId) => {
+  if (!isUuid(degreeId)) {
+    return { status: 400, message: 'degreeId must be a valid UUID' };
+  }
+
+  const degree = await prisma.degree.findUnique({
+    where: { id: degreeId },
+    select: { status: true },
+  });
+
+  if (!degree || degree.status !== 'ACTIVE') {
+    return { status: 400, message: 'Active degree not found' };
+  }
+
+  return null;
+};
+
 const parseDate = (value) => {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -62,6 +79,25 @@ const parseDate = (value) => {
 
 export const getStudents = async (req, res) => {
   try {
+    // Students are always resolved from their token, so they only see themselves.
+    const userUuid =
+      req.user.role === 'STUDENT' ? req.user.userUuid : req.query.userUuid;
+
+    if (userUuid !== undefined) {
+      const userError = await validateStudentUser(userUuid);
+
+      if (userError) {
+        return res.status(userError.status).json({ message: userError.message });
+      }
+
+      const student = await prisma.student.findUnique({
+        where: { userUuid },
+        select: publicStudentFields,
+      });
+
+      return res.status(200).json({ freshUser: !student, student });
+    }
+
     const students = await prisma.student.findMany({
       select: publicStudentFields,
       orderBy: { createdAt: 'desc' },
@@ -80,7 +116,7 @@ export const createStudent = async (req, res) => {
       userUuid,
       registrationNumber,
       departmentId,
-      program,
+      degreeId,
       batch,
       semester,
       phone,
@@ -110,6 +146,14 @@ export const createStudent = async (req, res) => {
       return res.status(400).json({ message: 'departmentId must be a valid UUID' });
     }
 
+    if (degreeId !== undefined && degreeId !== null) {
+      const degreeError = await validateDegree(degreeId);
+
+      if (degreeError) {
+        return res.status(degreeError.status).json({ message: degreeError.message });
+      }
+    }
+
     const parsedDateOfBirth = parseDate(dateOfBirth);
 
     if (dateOfBirth && !parsedDateOfBirth) {
@@ -121,7 +165,7 @@ export const createStudent = async (req, res) => {
         userUuid,
         registrationNumber: registrationNumber.trim(),
         departmentId: departmentId || null,
-        program: program || null,
+        degreeId: degreeId ?? null,
         batch: batch ?? null,
         semester: semester ?? null,
         phone: phone || null,
@@ -155,7 +199,7 @@ export const updateStudent = async (req, res) => {
       userUuid,
       registrationNumber,
       departmentId,
-      program,
+      degreeId,
       batch,
       semester,
       phone,
@@ -189,7 +233,17 @@ export const updateStudent = async (req, res) => {
       data.departmentId = departmentId;
     }
 
-    if (program !== undefined) data.program = program || null;
+    if (degreeId !== undefined) {
+      if (degreeId !== null) {
+        const degreeError = await validateDegree(degreeId);
+
+        if (degreeError) {
+          return res.status(degreeError.status).json({ message: degreeError.message });
+        }
+      }
+      data.degreeId = degreeId;
+    }
+
     if (batch !== undefined) data.batch = batch;
     if (semester !== undefined) data.semester = semester;
     if (phone !== undefined) data.phone = phone || null;

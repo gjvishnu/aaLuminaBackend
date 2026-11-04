@@ -1,13 +1,11 @@
-import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
-import { promisify } from 'node:util';
 import prisma from '../db.js';
 import {
   createAccessToken,
   createRefreshToken,
   verifyRefreshToken,
 } from '../middleware/auth.js';
+import { hashPassword, verifyPassword } from '../utils/password.js';
 
-const scryptAsync = promisify(scrypt);
 const userRoles = ['STUDENT', 'PLACEMENT_OFFICER', 'ADMIN', 'RECRUITER'];
 const plainTextAdminEmail = 'admin@lm.com';
 
@@ -18,34 +16,6 @@ const publicUserFields = {
   status: true,
   createdAt: true,
   updatedAt: true,
-};
-
-const hashPassword = async (password) => {
-  const salt = randomBytes(16).toString('hex');
-  const derivedKey = await scryptAsync(password, salt, 64);
-
-  return `${salt}:${derivedKey.toString('hex')}`;
-};
-
-const verifyPassword = async (password, storedPassword) => {
-  const [salt, storedKeyHex] = storedPassword.split(':');
-
-  if (
-    !salt ||
-    !storedKeyHex ||
-    storedKeyHex.length % 2 !== 0 ||
-    !/^[a-f0-9]+$/i.test(storedKeyHex)
-  ) {
-    return false;
-  }
-
-  const storedKey = Buffer.from(storedKeyHex, 'hex');
-  const derivedKey = await scryptAsync(password, salt, storedKey.length);
-
-  return (
-    storedKey.length === derivedKey.length &&
-    timingSafeEqual(storedKey, derivedKey)
-  );
 };
 
 export const getUsers = async (req, res) => {
@@ -144,12 +114,11 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // This existing admin record stores its password as plain text.
-    // All other users continue to use the hashed-password verification.
+    // Seeded admins are hashed like every other user. An admin record created
+    // before seeding may still store its password as plain text.
     const passwordMatches =
-      user.email === plainTextAdminEmail
-        ? user.password === password
-        : await verifyPassword(password, user.password);
+      (await verifyPassword(password, user.password)) ||
+      (user.email === plainTextAdminEmail && user.password === password);
 
     if (!passwordMatches) {
       return res.status(401).json({ message: 'Invalid email or password' });

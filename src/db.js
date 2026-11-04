@@ -4,10 +4,13 @@ import { loadEnvFile } from 'node:process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
+import { hashPassword } from './utils/password.js';
 
 const envPath = fileURLToPath(new URL('./.env', import.meta.url));
 const projectRoot = fileURLToPath(new URL('./', import.meta.url));
 const execFileAsync = promisify(execFile);
+const seedAdminEmail = 'admin@lm.com';
+const seedAdminPassword = 'pass@247';
 
 if (existsSync(envPath)) {
   loadEnvFile(envPath);
@@ -63,6 +66,25 @@ const applyMigrations = async () => {
   }
 };
 
+const seedAdminUser = async () => {
+  const { count } = await prisma.user.createMany({
+    data: [
+      {
+        email: seedAdminEmail,
+        password: await hashPassword(seedAdminPassword),
+        role: 'ADMIN',
+      },
+    ],
+    skipDuplicates: true,
+  });
+
+  console.log(
+    count > 0
+      ? `Seeded admin user: ${seedAdminEmail}`
+      : `Admin user already exists: ${seedAdminEmail}`,
+  );
+};
+
 export const connectDatabase = async () => {
   if (targetDatabaseName !== 'postgres') {
     const maintenanceDatabaseUrl = new URL(targetDatabaseUrl);
@@ -101,6 +123,7 @@ export const connectDatabase = async () => {
 
   await applyMigrations();
   await prisma.$connect();
+  await seedAdminUser();
 };
 
 export default prisma;

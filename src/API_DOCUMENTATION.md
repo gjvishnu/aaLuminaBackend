@@ -48,8 +48,8 @@ After logout, both the access token and refresh token for that user are invalida
 | Role | Main access |
 |---|---|
 | `ADMIN` | Full access, including user CRUD |
-| `PLACEMENT_OFFICER` | Manage departments, companies, students, and campus drives |
-| `STUDENT` | Authenticated read access and complete skill CRUD |
+| `PLACEMENT_OFFICER` | Manage departments, degrees, companies, students, and campus drives |
+| `STUDENT` | Authenticated read access, complete skill CRUD, and management of their own skills, internships, and projects |
 | `RECRUITER` | Authenticated read access and complete skill CRUD |
 
 The detailed permissions are listed with each API below.
@@ -262,6 +262,75 @@ DELETE /api/departments/:id
 
 This changes the department status to `INACTIVE`.
 
+## Degrees
+
+All authenticated roles can get degrees. Only `ADMIN` and `PLACEMENT_OFFICER` can create, edit, or deactivate degrees.
+
+`degreeName` is required, must be unique, and can be up to 150 characters. A duplicate name returns `409`, including the name of an inactive degree.
+
+### Get degrees
+
+```http
+GET /api/degrees
+```
+
+Returns all degrees, newest first, including inactive ones.
+
+Example response:
+
+```json
+[
+  {
+    "id": "3f1c8a52-6e0b-4c1d-9a7e-2b5d4f8e1c30",
+    "degreeName": "B.Tech",
+    "status": "ACTIVE",
+    "createdAt": "2026-11-04T10:15:30.000Z"
+  }
+]
+```
+
+### Create a degree
+
+```http
+POST /api/degrees
+```
+
+```json
+{
+  "degreeName": "B.Tech"
+}
+```
+
+Returns `201` with the created degree.
+
+### Edit a degree
+
+```http
+PUT /api/degrees/:id
+```
+
+```json
+{
+  "degreeName": "B.E."
+}
+```
+
+Returns `200` with the updated degree, or `404` if the degree does not exist.
+
+### Deactivate a degree
+
+```http
+DELETE /api/degrees/:id
+```
+
+This changes the degree status to `INACTIVE`.
+
+```json
+{
+  "message": "Degree marked as inactive"
+}
+```
+
 ## Skills
 
 All authenticated roles can use all skill APIs.
@@ -320,6 +389,48 @@ Only `ADMIN` and `PLACEMENT_OFFICER` can access student APIs. Student creation a
 GET /api/students
 ```
 
+Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`. The response depends on the caller:
+
+- `STUDENT` — returns the logged-in user's own student record. The user is taken from the access token, so no ID is sent and a `userUuid` query parameter is ignored.
+- `ADMIN` / `PLACEMENT_OFFICER` — returns an array of all students, as before.
+- `ADMIN` / `PLACEMENT_OFFICER` with `?userUuid=student-user-uuid` — returns that user's student record.
+
+`freshUser` is `true` when the user has no entry in the student table yet.
+
+Student record not created yet:
+
+```json
+{
+  "freshUser": true,
+  "student": null
+}
+```
+
+Student record exists:
+
+```json
+{
+  "freshUser": false,
+  "student": {
+    "id": "ba4115b8-f2dd-4c0b-a98d-57f7b345a046",
+    "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
+    "registrationNumber": "LM2026001",
+    "departmentId": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
+    "degreeId": "3f1c8a52-6e0b-4c1d-9a7e-2b5d4f8e1c30",
+    "batch": 2026,
+    "semester": 8,
+    "phone": "9876543210",
+    "dateOfBirth": "2004-05-10T00:00:00.000Z",
+    "location": "Chennai",
+    "status": "ACTIVE",
+    "createdAt": "2026-11-05T10:15:30.000Z",
+    "updatedAt": "2026-11-05T10:15:30.000Z"
+  }
+}
+```
+
+With `?userUuid=`, a user who does not exist returns `404`, and a user who is not an active `STUDENT` returns `403`.
+
 ### Create a student
 
 ```http
@@ -340,7 +451,7 @@ Optional fields:
 ```json
 {
   "departmentId": "department-uuid",
-  "program": "B.E Computer Science",
+  "degreeId": "degree-uuid",
   "batch": 2026,
   "semester": 8,
   "phone": "9876543210",
@@ -349,6 +460,8 @@ Optional fields:
 }
 ```
 
+`degreeId` must be the UUID of an active degree from `/api/degrees`, or `null` for no degree. Student responses return `degreeId`.
+
 Complete example:
 
 ```json
@@ -356,7 +469,7 @@ Complete example:
   "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
   "registrationNumber": "LM2026001",
   "departmentId": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
-  "program": "B.E Computer Science",
+  "degreeId": "3f1c8a52-6e0b-4c1d-9a7e-2b5d4f8e1c30",
   "batch": 2026,
   "semester": 8,
   "phone": "9876543210",
@@ -388,6 +501,242 @@ DELETE /api/students/:id
 ```
 
 This changes the student status to `INACTIVE`.
+
+## Student Skills
+
+A student can manage their own skills. `ADMIN` and `PLACEMENT_OFFICER` can manage any student's skills. Other users get `403`. `:studentId` is the `id` of the student record, not the `userUuid`; a missing student returns `404`.
+
+### Get a student's skills
+
+```http
+GET /api/students/:studentId/skills
+```
+
+```json
+[
+  {
+    "id": "8d2f7c10-52a4-4e1b-9f3a-6c1b7e2d4a90",
+    "skill": "React",
+    "category": "Frontend",
+    "domain": "Web Development",
+    "status": "ACTIVE"
+  }
+]
+```
+
+### Add a skill
+
+```http
+POST /api/students/:studentId/skills
+```
+
+```json
+{
+  "skillId": "8d2f7c10-52a4-4e1b-9f3a-6c1b7e2d4a90"
+}
+```
+
+Returns `201` with the skill. The skill must be active, otherwise the response is `404`. A skill the student already has returns `409`.
+
+### Replace all skills
+
+```http
+PUT /api/students/:studentId/skills
+```
+
+```json
+{
+  "skillIds": [
+    "8d2f7c10-52a4-4e1b-9f3a-6c1b7e2d4a90",
+    "b2a1c4e6-7d3f-4f0a-8e21-5a9c3d6f7b12"
+  ]
+}
+```
+
+The list replaces the student's skills and the updated skills are returned. Send an empty array to remove all of them. New skills must be active; a skill that was deactivated after the student added it may stay in the list.
+
+### Remove a skill
+
+```http
+DELETE /api/students/:studentId/skills/:skillId
+```
+
+## Internships
+
+A student can manage their own internships. `ADMIN` and `PLACEMENT_OFFICER` can manage any student's internships. Other users get `403`.
+
+| Field | Type | Rules |
+|---|---|---|
+| `title` | string | Required, up to 150 characters. Example: `Frontend Developer Intern` |
+| `companyName` | string | Required, up to 150 characters |
+| `startDate` | date | Required |
+| `endDate` | date or `null` | Optional. Cannot be before `startDate`. `null` means the internship is ongoing |
+| `description` | string | Required |
+| `isVerified` | boolean | Optional. Only `ADMIN` and `PLACEMENT_OFFICER` can set it |
+
+`isVerified` defaults to `false` and drives the "Verified experience" badge. A value sent by a student is ignored, and when a student edits an internship `isVerified` is reset to `false`, so the changes must be verified again.
+
+### Get a student's internships
+
+```http
+GET /api/students/:studentId/internships
+```
+
+Returns the student's internships, latest `startDate` first.
+
+```json
+[
+  {
+    "id": "6e0f3a2b-91c4-4d7e-a5b8-2f4c7d1e9a33",
+    "studentId": "ba4115b8-f2dd-4c0b-a98d-57f7b345a046",
+    "title": "Frontend Developer Intern",
+    "companyName": "BlueOrbit Technologies",
+    "startDate": "2025-05-01T00:00:00.000Z",
+    "endDate": "2025-07-31T00:00:00.000Z",
+    "description": "Built responsive dashboard screens and reusable React components.",
+    "isVerified": true,
+    "createdAt": "2026-11-05T10:15:30.000Z",
+    "updatedAt": "2026-11-05T10:15:30.000Z"
+  }
+]
+```
+
+### Get an internship
+
+```http
+GET /api/students/:studentId/internships/:id
+```
+
+### Create an internship
+
+```http
+POST /api/students/:studentId/internships
+```
+
+```json
+{
+  "title": "Frontend Developer Intern",
+  "companyName": "BlueOrbit Technologies",
+  "startDate": "2025-05-01",
+  "endDate": "2025-07-31",
+  "description": "Built responsive dashboard screens and reusable React components."
+}
+```
+
+Returns `201` with the created internship.
+
+### Edit an internship
+
+```http
+PUT /api/students/:studentId/internships/:id
+```
+
+Send all the required fields, as for create. An omitted `endDate` is cleared. An `ADMIN` or `PLACEMENT_OFFICER` can verify the internship:
+
+```json
+{
+  "title": "Frontend Developer Intern",
+  "companyName": "BlueOrbit Technologies",
+  "startDate": "2025-05-01",
+  "endDate": "2025-07-31",
+  "description": "Built responsive dashboard screens and reusable React components.",
+  "isVerified": true
+}
+```
+
+### Delete an internship
+
+```http
+DELETE /api/students/:studentId/internships/:id
+```
+
+This permanently deletes the internship.
+
+## Projects
+
+A student can manage their own projects. `ADMIN` and `PLACEMENT_OFFICER` can manage any student's projects. Other users get `403`.
+
+| Field | Type | Rules |
+|---|---|---|
+| `title` | string | Required, up to 150 characters |
+| `projectType` | string | Required, up to 100 characters. Example: `Academic project` |
+| `description` | string | Required |
+| `technologies` | UUID array | Optional, defaults to an empty array. Each value is the `id` of an active skill from `/api/skills` |
+
+Requests send `technologies` as skill IDs. Responses return `technologies` as skill objects, so the names can be shown directly. An unknown or inactive skill ID returns `404`; a skill deactivated after it was added to the project can stay on that project.
+
+### Get a student's projects
+
+```http
+GET /api/students/:studentId/projects
+```
+
+Returns the student's projects, newest first.
+
+```json
+[
+  {
+    "id": "c47a1d58-3b2e-4f96-b0d7-8e5a6f2c1d44",
+    "studentId": "ba4115b8-f2dd-4c0b-a98d-57f7b345a046",
+    "title": "Placement Prep AI",
+    "projectType": "Full-stack web application",
+    "description": "Personalized placement preparation dashboard with job matching and interview insights.",
+    "technologies": [
+      {
+        "id": "8d2f7c10-52a4-4e1b-9f3a-6c1b7e2d4a90",
+        "skill": "React",
+        "category": "Frontend",
+        "domain": "Web Development",
+        "status": "ACTIVE"
+      }
+    ],
+    "createdAt": "2026-11-05T10:15:30.000Z",
+    "updatedAt": "2026-11-05T10:15:30.000Z"
+  }
+]
+```
+
+### Get a project
+
+```http
+GET /api/students/:studentId/projects/:id
+```
+
+### Create a project
+
+```http
+POST /api/students/:studentId/projects
+```
+
+```json
+{
+  "title": "Placement Prep AI",
+  "projectType": "Full-stack web application",
+  "description": "Personalized placement preparation dashboard with job matching and interview insights.",
+  "technologies": [
+    "8d2f7c10-52a4-4e1b-9f3a-6c1b7e2d4a90",
+    "b2a1c4e6-7d3f-4f0a-8e21-5a9c3d6f7b12"
+  ]
+}
+```
+
+Returns `201` with the created project.
+
+### Edit a project
+
+```http
+PUT /api/students/:studentId/projects/:id
+```
+
+Send all the required fields, as for create. An omitted `technologies` list is cleared.
+
+### Delete a project
+
+```http
+DELETE /api/students/:studentId/projects/:id
+```
+
+This permanently deletes the project.
 
 ## Companies
 
@@ -555,6 +904,7 @@ Optional query parameters:
 ```text
 page=1
 pageSize=20
+search=chennai
 companyId=company-uuid
 status=UPCOMING
 driveDate=2026-11-20
@@ -562,6 +912,14 @@ driveDateFrom=2026-11-01
 driveDateTo=2026-11-30
 jobRole=Engineer
 jobType=FULL_TIME
+```
+
+`search` is a case-insensitive partial match against the company name, job role, job location, and venue. An item is returned if any of these fields match. Maximum 150 characters; a blank value is ignored. It can be combined with the other filters, which must all match as well, and `pagination.total` reflects the filtered results.
+
+Example:
+
+```http
+GET /api/drives?search=software&status=UPCOMING&page=1&pageSize=20
 ```
 
 Each role is returned as a separate drive item. Shared drive and company fields are repeated for each item, and each item contains exactly one object in its `roles` array. Use the drive `id` and `roles[0].id` when editing or deleting a role.

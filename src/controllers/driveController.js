@@ -241,6 +241,7 @@ export const listDrives = async (req, res) => {
     const {
       page,
       pageSize,
+      search,
       companyId,
       status,
       driveDate,
@@ -270,6 +271,16 @@ export const listDrives = async (req, res) => {
     if (jobRole || jobType) {
       if (jobRole) roleWhere.jobRole = { contains: jobRole, mode: 'insensitive' };
       if (jobType) roleWhere.jobType = jobType;
+    }
+
+    if (search) {
+      const contains = { contains: search, mode: 'insensitive' };
+      roleWhere.OR = [
+        { jobRole: contains },
+        { jobLocation: contains },
+        { drive: { venue: contains } },
+        { drive: { company: { name: contains } } },
+      ];
     }
 
     const [total, roles] = await prisma.$transaction([
