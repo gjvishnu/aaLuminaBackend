@@ -3,6 +3,7 @@ import prisma from '../db.js';
 const publicStudentFields = {
   id: true,
   userUuid: true,
+  name: true,
   registrationNumber: true,
   departmentId: true,
   degreeId: true,
@@ -21,6 +22,9 @@ const isUuid = (value) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   );
+
+const isValidName = (value) =>
+  typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 150;
 
 const validateStudentUser = async (userUuid) => {
   if (!isUuid(userUuid)) {
@@ -79,25 +83,6 @@ const parseDate = (value) => {
 
 export const getStudents = async (req, res) => {
   try {
-    // Students are always resolved from their token, so they only see themselves.
-    const userUuid =
-      req.user.role === 'STUDENT' ? req.user.userUuid : req.query.userUuid;
-
-    if (userUuid !== undefined) {
-      const userError = await validateStudentUser(userUuid);
-
-      if (userError) {
-        return res.status(userError.status).json({ message: userError.message });
-      }
-
-      const student = await prisma.student.findUnique({
-        where: { userUuid },
-        select: publicStudentFields,
-      });
-
-      return res.status(200).json({ freshUser: !student, student });
-    }
-
     const students = await prisma.student.findMany({
       select: publicStudentFields,
       orderBy: { createdAt: 'desc' },
@@ -110,10 +95,39 @@ export const getStudents = async (req, res) => {
   }
 };
 
+export const getStudentProfile = async (req, res) => {
+  try {
+    const { userId } = req.validatedQuery;
+
+    if (req.user.role === 'STUDENT' && userId !== req.user.userUuid) {
+      return res.status(403).json({
+        message: 'You do not have permission to access this feature.',
+      });
+    }
+
+    const userError = await validateStudentUser(userId);
+
+    if (userError) {
+      return res.status(userError.status).json({ message: userError.message });
+    }
+
+    const student = await prisma.student.findUnique({
+      where: { userUuid: userId },
+      select: publicStudentFields,
+    });
+
+    return res.status(200).json({ freshUser: !student, student });
+  } catch (error) {
+    console.error('Failed to fetch student profile:', error.message);
+    return res.status(500).json({ message: 'Failed to fetch student profile' });
+  }
+};
+
 export const createStudent = async (req, res) => {
   try {
     const {
       userUuid,
+      name,
       registrationNumber,
       departmentId,
       degreeId,
@@ -127,6 +141,12 @@ export const createStudent = async (req, res) => {
     if (!userUuid || !registrationNumber) {
       return res.status(400).json({
         message: 'userUuid and registrationNumber are required',
+      });
+    }
+
+    if (!isValidName(name)) {
+      return res.status(400).json({
+        message: 'name is required and can be up to 150 characters',
       });
     }
 
@@ -163,6 +183,7 @@ export const createStudent = async (req, res) => {
     const student = await prisma.student.create({
       data: {
         userUuid,
+        name: name.trim(),
         registrationNumber: registrationNumber.trim(),
         departmentId: departmentId || null,
         degreeId: degreeId ?? null,
@@ -197,6 +218,7 @@ export const updateStudent = async (req, res) => {
     const { id } = req.params;
     const {
       userUuid,
+      name,
       registrationNumber,
       departmentId,
       degreeId,
@@ -218,6 +240,15 @@ export const updateStudent = async (req, res) => {
     }
 
     const data = {};
+
+    if (name !== undefined) {
+      if (!isValidName(name)) {
+        return res.status(400).json({
+          message: 'name cannot be empty and can be up to 150 characters',
+        });
+      }
+      data.name = name.trim();
+    }
 
     if (registrationNumber !== undefined) {
       if (typeof registrationNumber !== 'string' || !registrationNumber.trim()) {

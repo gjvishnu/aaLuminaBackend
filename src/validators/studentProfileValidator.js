@@ -4,6 +4,8 @@ const uuid = z.string().uuid();
 const text = (max) => z.string().trim().min(1).max(max);
 const description = z.string().trim().min(1);
 
+export const studentProfileQuerySchema = z.object({ userId: uuid });
+
 export const studentParamsSchema = z.object({ studentId: uuid });
 export const studentItemParamsSchema = z.object({ studentId: uuid, id: uuid });
 export const studentSkillParamsSchema = z.object({ studentId: uuid, skillId: uuid });

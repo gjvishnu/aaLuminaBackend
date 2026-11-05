@@ -49,7 +49,7 @@ After logout, both the access token and refresh token for that user are invalida
 |---|---|
 | `ADMIN` | Full access, including user CRUD |
 | `PLACEMENT_OFFICER` | Manage departments, degrees, companies, students, and campus drives |
-| `STUDENT` | Authenticated read access, complete skill CRUD, and management of their own skills, internships, and projects |
+| `STUDENT` | Authenticated read access, complete skill CRUD, creating and editing their own student record, and management of their own skills, internships, and projects |
 | `RECRUITER` | Authenticated read access and complete skill CRUD |
 
 The detailed permissions are listed with each API below.
@@ -381,7 +381,7 @@ This changes the skill status to `INACTIVE`.
 
 ## Students
 
-Only `ADMIN` and `PLACEMENT_OFFICER` can access student APIs. Student creation and editing still require the `userUuid` to belong to an active user with the `STUDENT` role.
+`ADMIN` and `PLACEMENT_OFFICER` can access all student APIs. A `STUDENT` can create their own record and edit it, and cannot change `registrationNumber` once the record exists; any other student's `userUuid` or record returns `403`. Student creation and editing still require the `userUuid` to belong to an active user with the `STUDENT` role.
 
 ### Get students
 
@@ -389,11 +389,17 @@ Only `ADMIN` and `PLACEMENT_OFFICER` can access student APIs. Student creation a
 GET /api/students
 ```
 
-Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`. The response depends on the caller:
+Returns an array of all students, newest first. Only `ADMIN` and `PLACEMENT_OFFICER` can use this API.
 
-- `STUDENT` — returns the logged-in user's own student record. The user is taken from the access token, so no ID is sent and a `userUuid` query parameter is ignored.
-- `ADMIN` / `PLACEMENT_OFFICER` — returns an array of all students, as before.
-- `ADMIN` / `PLACEMENT_OFFICER` with `?userUuid=student-user-uuid` — returns that user's student record.
+### Get a student profile
+
+```http
+GET /api/students/profile?userId=student-user-uuid
+```
+
+`userId` is required and is the user's `userUuid` from the login response, not the student record `id`.
+
+Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`. A student can only request their own `userId`; any other value returns `403`.
 
 `freshUser` is `true` when the user has no entry in the student table yet.
 
@@ -414,6 +420,7 @@ Student record exists:
   "student": {
     "id": "ba4115b8-f2dd-4c0b-a98d-57f7b345a046",
     "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
+    "name": "Priya Nair",
     "registrationNumber": "LM2026001",
     "departmentId": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
     "degreeId": "3f1c8a52-6e0b-4c1d-9a7e-2b5d4f8e1c30",
@@ -429,7 +436,7 @@ Student record exists:
 }
 ```
 
-With `?userUuid=`, a user who does not exist returns `404`, and a user who is not an active `STUDENT` returns `403`.
+A missing or invalid `userId` returns `400`, a user who does not exist returns `404`, and a user who is not an active `STUDENT` returns `403`.
 
 ### Create a student
 
@@ -437,11 +444,16 @@ With `?userUuid=`, a user who does not exist returns `404`, and a user who is no
 POST /api/students
 ```
 
+Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`.
+
+A `STUDENT` can only create their own record: `userUuid` must be their own, otherwise the response is `403`. A user can have only one student record, and `registrationNumber` must be unique; a duplicate returns `409`.
+
 Required fields:
 
 ```json
 {
   "userUuid": "student-user-uuid",
+  "name": "Priya Nair",
   "registrationNumber": "LM2026001"
 }
 ```
@@ -460,6 +472,8 @@ Optional fields:
 }
 ```
 
+`name` is the student's name, up to 150 characters. Records created before this field was added return `name` as `null` until it is set with an edit.
+
 `degreeId` must be the UUID of an active degree from `/api/degrees`, or `null` for no degree. Student responses return `degreeId`.
 
 Complete example:
@@ -467,6 +481,7 @@ Complete example:
 ```json
 {
   "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
+  "name": "Priya Nair",
   "registrationNumber": "LM2026001",
   "departmentId": "8b6c3f20-2f14-4b44-9f3b-7a8d2c1e5a10",
   "degreeId": "3f1c8a52-6e0b-4c1d-9a7e-2b5d4f8e1c30",
@@ -484,21 +499,28 @@ Complete example:
 PUT /api/students/:id
 ```
 
-`userUuid` is required in the request body. Other fields are optional.
+Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`.
+
+`userUuid` is required in the request body. Other fields are optional, and only the fields sent are updated. `name` cannot be empty when it is sent.
 
 ```json
 {
   "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
+  "name": "Priya Nair",
   "semester": 8,
   "location": "Bengaluru"
 }
 ```
+
+A `STUDENT` can only edit their own record. The response is `403` if `userUuid` or the record belongs to someone else, or if `registrationNumber` is sent, because a student cannot change it. A missing record returns `404`.
 
 ### Deactivate a student
 
 ```http
 DELETE /api/students/:id
 ```
+
+Allowed roles: `ADMIN` and `PLACEMENT_OFFICER`.
 
 This changes the student status to `INACTIVE`.
 
@@ -1115,7 +1137,7 @@ OTHER
 | `201` | Record created |
 | `400` | Invalid payload, parameter, or enum value |
 | `401` | Missing, invalid, expired, or invalidated token |
-| `403` | Token is valid but the role is not allowed |
+| `403` | Token is valid but the role is not allowed, or the record belongs to another user |
 | `404` | Record not found |
 | `409` | Duplicate record |
 | `500` | Unexpected server error |
