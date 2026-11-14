@@ -4,7 +4,7 @@ import { isStudentManager } from '../middleware/studentAccess.js';
 // A "job" is a DriveRole: the role holds the job details and the eligibility
 // criteria, and its drive holds the company and the apply-by date.
 
-const OPEN_DRIVE_STATUSES = ['UPCOMING', 'ONGOING'];
+export const OPEN_DRIVE_STATUSES = ['UPCOMING', 'ONGOING'];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const accessDeniedMessage = 'You do not have permission to access this feature.';
@@ -53,7 +53,35 @@ const detailRoleSelect = {
   departments: { select: { department: { select: { id: true, name: true } } } },
 };
 
-const todayUtc = () => {
+// Display text for each selection process round, shown on the job details screen.
+const SELECTION_PROCESS_DETAILS = {
+  ONLINE_ASSESSMENT: { title: 'Online Test', description: 'Aptitude, Coding & Technical' },
+  APTITUDE_TEST: { title: 'Aptitude Test', description: 'Quantitative, Logical & Verbal Reasoning' },
+  TECHNICAL_TEST: { title: 'Technical Test', description: 'Core Subjects & Technical Concepts' },
+  GROUP_DISCUSSION: { title: 'Group Discussion', description: 'Topics on Current Trends' },
+  TECHNICAL_INTERVIEW: { title: 'Technical Interview', description: 'Core CS & Problem Solving' },
+  HR_INTERVIEW: { title: 'HR Interview', description: 'Communication & Behavioral' },
+  MANAGERIAL_INTERVIEW: { title: 'Managerial Interview', description: 'Managerial Round' },
+  CASE_STUDY: { title: 'Case Study', description: 'Problem Analysis & Presentation' },
+  CODING_ROUND: { title: 'Coding Round', description: 'Data Structures & Algorithms' },
+  OTHER: { title: 'Other Round', description: 'Details shared by the placement team' },
+};
+
+const SELECTION_PROCESS_NOTE =
+  'The selection process may vary slightly depending on the role and location.';
+
+// Rounds keep the order the placement officer entered them in.
+const buildSelectionProcess = (selectionProcesses) => ({
+  totalSteps: selectionProcesses.length,
+  steps: selectionProcesses.map((key, index) => ({
+    step: index + 1,
+    key,
+    ...SELECTION_PROCESS_DETAILS[key],
+  })),
+  note: SELECTION_PROCESS_NOTE,
+});
+
+export const todayUtc = () => {
   const date = new Date();
   date.setUTCHours(0, 0, 0, 0);
   return date;
@@ -213,6 +241,7 @@ export const toJob = (role, student, { detail = false, requireSkillMatch = true 
     job.jobDescription = role.jobDescription;
     job.jdPdfUrl = role.jdPdfUrl;
     job.selectionProcesses = role.selectionProcesses;
+    job.selectionProcess = buildSelectionProcess(role.selectionProcesses);
   }
 
   return job;

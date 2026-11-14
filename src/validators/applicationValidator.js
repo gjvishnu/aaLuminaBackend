@@ -2,7 +2,14 @@ import { z } from 'zod';
 
 const uuid = z.string().uuid();
 
-export const applicationStatuses = ['APPLIED', 'SHORTLISTED', 'REJECTED', 'SELECTED', 'WITHDRAWN'];
+export const applicationStatuses = [
+  'APPLIED',
+  'SHORTLISTED',
+  'INTERVIEW',
+  'REJECTED',
+  'SELECTED',
+  'WITHDRAWN',
+];
 
 export const applicationListQuerySchema = z.object({
   studentId: uuid,

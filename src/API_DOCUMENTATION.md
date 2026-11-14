@@ -49,7 +49,7 @@ After logout, both the access token and refresh token for that user are invalida
 |---|---|
 | `ADMIN` | Full access, including user CRUD |
 | `PLACEMENT_OFFICER` | Manage departments, degrees, companies, students, and campus drives |
-| `STUDENT` | Authenticated read access, complete skill CRUD, creating and editing their own student record, management of their own skills, internships, and projects, viewing the jobs they are eligible for, applying for them, and viewing their own applications |
+| `STUDENT` | Authenticated read access, complete skill CRUD, creating and editing their own student record, management of their own skills, internships, and projects, viewing the jobs they are eligible for, applying for them, viewing their own applications, and viewing their own dashboard |
 | `RECRUITER` | Authenticated read access and complete skill CRUD |
 
 The detailed permissions are listed with each API below.
@@ -1313,6 +1313,15 @@ The response has every field from the list response, plus:
   "jobDescription": "Build and maintain enterprise applications.",
   "jdPdfUrl": "https://example.com/jd/tcs-software-engineer.pdf",
   "selectionProcesses": ["ONLINE_ASSESSMENT", "TECHNICAL_INTERVIEW", "HR_INTERVIEW"],
+  "selectionProcess": {
+    "totalSteps": 3,
+    "steps": [
+      { "step": 1, "key": "ONLINE_ASSESSMENT", "title": "Online Test", "description": "Aptitude, Coding & Technical" },
+      { "step": 2, "key": "TECHNICAL_INTERVIEW", "title": "Technical Interview", "description": "Core CS & Problem Solving" },
+      { "step": 3, "key": "HR_INTERVIEW", "title": "HR Interview", "description": "Communication & Behavioral" }
+    ],
+    "note": "The selection process may vary slightly depending on the role and location."
+  },
   "eligibility": {
     "minimumCgpa": 7,
     "maximumBacklogs": 0,
@@ -1326,6 +1335,28 @@ The response has every field from the list response, plus:
 }
 ```
 
+#### Selection process
+
+`selectionProcess` drives the **Selection Process** card. Its `steps` are the role's rounds in the order the placement officer entered them, numbered from `1`. Each step has:
+
+- `key`: the selection process value, which the app can use to pick an icon.
+- `title` and `description`: the text shown under the step.
+
+`note` is the message shown at the bottom of the card. `selectionProcesses` still returns the raw values.
+
+| `key` | `title` | `description` |
+|---|---|---|
+| `ONLINE_ASSESSMENT` | Online Test | Aptitude, Coding & Technical |
+| `APTITUDE_TEST` | Aptitude Test | Quantitative, Logical & Verbal Reasoning |
+| `TECHNICAL_TEST` | Technical Test | Core Subjects & Technical Concepts |
+| `GROUP_DISCUSSION` | Group Discussion | Topics on Current Trends |
+| `TECHNICAL_INTERVIEW` | Technical Interview | Core CS & Problem Solving |
+| `HR_INTERVIEW` | HR Interview | Communication & Behavioral |
+| `MANAGERIAL_INTERVIEW` | Managerial Interview | Managerial Round |
+| `CASE_STUDY` | Case Study | Problem Analysis & Presentation |
+| `CODING_ROUND` | Coding Round | Data Structures & Algorithms |
+| `OTHER` | Other Round | Details shared by the placement team |
+
 ## Applications
 
 The Applications APIs let a student apply for a job from the Jobs screen and list their applications on the **Applications** screen.
@@ -1337,10 +1368,10 @@ Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`. A `STUDENT` can only
 Application status values:
 
 ```text
-APPLIED, SHORTLISTED, REJECTED, SELECTED, WITHDRAWN
+APPLIED, SHORTLISTED, INTERVIEW, REJECTED, SELECTED, WITHDRAWN
 ```
 
-A new application always starts as `APPLIED`. There is no API yet for changing the status.
+`INTERVIEW` means the student is in the interview stage, and `SELECTED` means they received an offer. A new application always starts as `APPLIED`. There is no API yet for changing the status.
 
 If a placement officer deletes a drive or a drive role, the applications for it are deleted too.
 
@@ -1441,6 +1472,7 @@ Response:
     "ALL": 1,
     "APPLIED": 1,
     "SHORTLISTED": 0,
+    "INTERVIEW": 0,
     "REJECTED": 0,
     "SELECTED": 0,
     "WITHDRAWN": 0
@@ -1455,6 +1487,220 @@ Response:
 When the student has no applications, `data` is an empty array and the response is still `200`.
 
 A missing or invalid `studentId` or query value returns `400`, a student that does not exist returns `404`, and a `STUDENT` passing another student's `studentId`, or an inactive student, returns `403`.
+
+## Student Dashboard
+
+One API returns everything on the student **Dashboard** screen, as one object per card:
+
+| Object | Card |
+|---|---|
+| `placementOverview` | Placement Overview: profile completion, placement readiness, and application activity |
+| `upcomingDrives` | Upcoming & Ongoing Drives |
+| `recommendedJobs` | Recommended For You |
+| `skillsInDemand` | Skills Companies Are Looking For |
+
+### Get the student dashboard
+
+```http
+GET /api/students/dashboard?studentId=student-record-uuid
+```
+
+Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`. A `STUDENT` can only pass their own `studentId`; any other student returns `403`. `ADMIN` and `PLACEMENT_OFFICER` can pass any `studentId`.
+
+`studentId` is required and is the student record `id`. Get it from `GET /api/students/profile`.
+
+Optional query parameters set how many items each list card returns:
+
+| Parameter | Card | Default | Allowed |
+|---|---|---|---|
+| `driveLimit` | Upcoming & Ongoing Drives | `3` | `1`–`20` |
+| `recommendedLimit` | Recommended For You | `3` | `1`–`20` |
+| `skillLimit` | Skills Companies Are Looking For | `6` | `1`–`20` |
+
+Each card's **View All** link should open the full screen: the Jobs screen (`GET /api/jobs`) for drives and recommendations, and the Applications screen (`GET /api/applications`) for application activity.
+
+Response:
+
+```json
+{
+  "placementOverview": {
+    "profileCompletion": {
+      "percentage": 65,
+      "checklist": [
+        { "key": "personalDetails", "label": "Personal Details", "done": true },
+        { "key": "internships", "label": "Internship Details", "done": true },
+        { "key": "cgpa", "label": "CGPA", "done": true },
+        { "key": "resume", "label": "Resume", "done": false },
+        { "key": "skills", "label": "Skills", "done": true },
+        { "key": "projects", "label": "Projects", "done": true }
+      ],
+      "sections": [
+        { "key": "personalDetails", "weight": 20, "earned": 20 },
+        { "key": "academicPerformance", "weight": 20, "earned": 20 },
+        { "key": "resume", "weight": 25, "earned": 0 },
+        { "key": "placementProfile", "weight": 25, "earned": 25 },
+        { "key": "activities", "weight": 10, "earned": 0 }
+      ],
+      "missingFields": ["resume", "extracurriculars", "sports", "awards"]
+    },
+    "placementReadiness": {
+      "percentage": 75,
+      "checklist": [
+        { "key": "cgpa", "label": "CGPA", "weight": 25, "done": true },
+        { "key": "resume", "label": "Upload your resume", "weight": 25, "done": false },
+        { "key": "skills", "label": "Skills", "weight": 20, "done": true },
+        { "key": "projects", "label": "Projects", "weight": 15, "done": true },
+        { "key": "internships", "label": "Internships", "weight": 15, "done": true }
+      ]
+    },
+    "applicationActivity": {
+      "total": 12,
+      "applied": 12,
+      "shortlisted": 6,
+      "interviews": 4,
+      "offers": 1,
+      "rejected": 3,
+      "withdrawn": 0
+    }
+  },
+  "upcomingDrives": {
+    "counts": {
+      "ongoing": 1,
+      "upcoming": 2
+    },
+    "totalJobs": 3,
+    "items": [
+      {
+        "jobId": "8c470353-cea6-4fd1-ad8b-6b2890c7e6fb",
+        "driveId": "6c18b908-8e4a-4cd5-85d5-b9d926b4dc10",
+        "company": { "id": "7e113ed7-cb4b-4e68-9bf4-75fcb092a9c1", "name": "TCS" },
+        "jobRole": "Software Engineer",
+        "ctcPackage": "7.5 LPA",
+        "driveDate": "2026-09-05T00:00:00.000Z",
+        "driveTime": "10:00",
+        "driveStatus": "ONGOING",
+        "applyBy": "2026-09-03T00:00:00.000Z",
+        "daysLeft": -2,
+        "application": {
+          "id": "0f9a7c52-3b1e-4d6a-9c8f-2e4b6a1d3c70",
+          "status": "APPLIED",
+          "appliedAt": "2026-09-01T10:30:00.000Z"
+        }
+      },
+      {
+        "jobId": "2b7e4f19-8c3d-4a6b-9e1f-5d7c8a2b4e60",
+        "driveId": "9d2c4e81-5a7b-4f3c-8e6d-1b9a7c5e3f20",
+        "company": { "id": "4c8e2a61-7b3d-4f9e-a5c1-8d2b6e4f7a90", "name": "Zoho" },
+        "jobRole": "Developer",
+        "ctcPackage": "8.0 LPA",
+        "driveDate": "2026-09-12T00:00:00.000Z",
+        "driveTime": "09:30",
+        "driveStatus": "UPCOMING",
+        "applyBy": "2026-09-10T00:00:00.000Z",
+        "daysLeft": 5,
+        "application": null
+      }
+    ]
+  },
+  "recommendedJobs": {
+    "total": 5,
+    "items": [
+      {
+        "jobId": "2b7e4f19-8c3d-4a6b-9e1f-5d7c8a2b4e60",
+        "driveId": "9d2c4e81-5a7b-4f3c-8e6d-1b9a7c5e3f20",
+        "company": { "id": "4c8e2a61-7b3d-4f9e-a5c1-8d2b6e4f7a90", "name": "Zoho" },
+        "jobRole": "Developer",
+        "ctcPackage": "8.0 LPA",
+        "match": { "percentage": 81, "label": "Great", "matchedSkills": 4, "totalSkills": 5 },
+        "departments": [
+          { "id": "48ce8bfd-f067-4887-95af-9ef4d72044cc", "name": "CSE" },
+          { "id": "5a1d3f72-9c4e-4b8a-b6d2-7e3f1c9a5b80", "name": "IT" }
+        ],
+        "graduationYears": [2026],
+        "applyBy": "2026-09-10T00:00:00.000Z",
+        "daysLeft": 5
+      }
+    ]
+  },
+  "skillsInDemand": {
+    "totalCompanies": 30,
+    "totalSkills": 42,
+    "items": [
+      { "skillId": "3a6e4280-c448-44d8-bad7-7bb5a0e61a7b", "skill": "React.js", "companyCount": 24, "studentHasSkill": true },
+      { "skillId": "58f31992-f381-4fd2-be41-6d8e0c16b109", "skill": "Python", "companyCount": 21, "studentHasSkill": false }
+    ]
+  }
+}
+```
+
+#### `placementOverview.profileCompletion`
+
+Profile Completion and Placement Readiness use the same formulas as the student **My Profile** screen, so the dashboard and the profile screen always show the same percentages.
+
+The backend does not store a resume, extracurriculars, sports, or awards yet, so these always count as not done. A student can therefore reach at most 65% profile completion and 75% placement readiness until those sections are added.
+
+`percentage` is the sum of these sections, rounded to a whole number:
+
+| Section (`sections[].key`) | Weight | Earned when |
+|---|---|---|
+| `personalDetails` | 20 | 5 points for each of name, phone, date of birth, and location. The name always counts, because the app falls back to a name built from the account email. |
+| `academicPerformance` | 20 | `cgpa` is set |
+| `resume` | 25 | A resume is uploaded (not stored yet, so always 0) |
+| `placementProfile` | 25 | 8.33 points each for at least one skill, one project, and one internship |
+| `activities` | 10 | 3.33 points each for extracurriculars, sports, and awards (not stored yet, so always 0) |
+
+- `sections` gives the `weight` and `earned` points of each section, rounded to 2 decimal places.
+- `checklist` holds the six items of the **Profile checklist**, in the same order and with the same labels as the profile screen. `done` is `false` for items to show with a warning icon.
+- `missingFields` lists what is still missing, using these keys: `name`, `phone`, `dateOfBirth`, `location`, `cgpa`, `resume`, `skills`, `projects`, `internships`, `extracurriculars`, `sports`, and `awards`. Use it for the **Complete profile** link.
+
+#### `placementOverview.placementReadiness`
+
+`percentage` is the sum of the weights of the items that are done:
+
+| Item (`checklist[].key`) | Weight | Done when |
+|---|---|---|
+| `cgpa` | 25 | `cgpa` is set |
+| `resume` | 25 | A resume is uploaded (not stored yet, so always not done) |
+| `skills` | 20 | The student has at least one skill |
+| `projects` | 15 | The student has at least one project |
+| `internships` | 15 | The student has at least one internship |
+
+`checklist` holds these five items for the **Readiness checklist**, in the same order and with the same labels as the profile screen. An item that is not done has an action label instead, such as **Upload your resume**, **Add your CGPA**, **Add your skills**, **Add a project**, or **Add internship details**.
+
+#### `placementOverview.applicationActivity`
+
+Counts of the student's applications. `total` and `applied` are both the number of applications the student has made (every status); the other counts are by current status:
+
+| Field | Application status |
+|---|---|
+| `shortlisted` | `SHORTLISTED` |
+| `interviews` | `INTERVIEW` |
+| `offers` | `SELECTED` |
+| `rejected` | `REJECTED` |
+| `withdrawn` | `WITHDRAWN` |
+
+#### `upcomingDrives`
+
+Jobs in `UPCOMING` and `ONGOING` drives, with the soonest `driveDate` first. A job is included when the student is eligible for it (see [How eligibility works](#how-eligibility-works)), or when the student has already applied for it. An applied job stays here even after its apply-by date has passed, so `daysLeft` can be negative for those jobs.
+
+- `counts.ongoing` and `counts.upcoming` count distinct drives, for the **1 Ongoing** and **2 Upcoming** badges.
+- `totalJobs` is the number of jobs before `driveLimit` is applied.
+- `application` is `null` when the student has not applied, so the app shows **Apply Now**. Otherwise it holds the application, so the app shows **Applied**. Apply Now should call `POST /api/applications` with the `jobId` as `roleId`.
+
+#### `recommendedJobs`
+
+Jobs the student is eligible for and has **not** applied for yet, sorted by highest `match.percentage`, then closest apply-by date. `total` is the number before `recommendedLimit` is applied.
+
+`departments` and `graduationYears` are the role's criteria, shown as **CSE, IT** and **2026 Batch** on the card. **View Drive** can open `GET /api/jobs/:roleId?studentId=...` with the `jobId`.
+
+#### `skillsInDemand`
+
+For each skill, `companyCount` is the number of distinct companies with an `UPCOMING` or `ONGOING` drive that asks for that skill. Skills are sorted by `companyCount`, highest first.
+
+- `totalCompanies` is the number of companies with open drives. Use it, or the first item's `companyCount`, as 100% when drawing the bars.
+- `studentHasSkill` is `true` when the student already has the skill.
+
+A missing or invalid `studentId` or limit returns `400`, a student that does not exist returns `404`, and a `STUDENT` passing another student's `studentId`, or an inactive student, returns `403`.
 
 ## Common response codes
 

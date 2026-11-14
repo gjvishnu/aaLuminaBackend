@@ -44,6 +44,7 @@ enum JobType {
 enum ApplicationStatus {
   APPLIED
   SHORTLISTED
+  INTERVIEW
   REJECTED
   SELECTED
   WITHDRAWN

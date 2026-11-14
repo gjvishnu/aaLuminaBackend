@@ -6,9 +6,11 @@ import {
   getStudents,
   updateStudent,
 } from '../controllers/studentController.js';
+import { getStudentDashboard } from '../controllers/dashboardController.js';
 import { authorizeRoles, requireAuth } from '../middleware/auth.js';
 import { requireOwnStudentRecord, requireOwnStudentUser } from '../middleware/studentAccess.js';
 import { validateQuery } from '../middleware/validate.js';
+import { studentDashboardQuerySchema } from '../validators/dashboardValidator.js';
 import { studentProfileQuerySchema } from '../validators/studentProfileValidator.js';
 import studentProfileRoutes from './studentProfileRoutes.js';
 
@@ -21,6 +23,12 @@ router.get(
   authorizeRoles('ADMIN', 'PLACEMENT_OFFICER', 'STUDENT'),
   validateQuery(studentProfileQuerySchema),
   getStudentProfile,
+);
+router.get(
+  '/dashboard',
+  authorizeRoles('ADMIN', 'PLACEMENT_OFFICER', 'STUDENT'),
+  validateQuery(studentDashboardQuerySchema),
+  getStudentDashboard,
 );
 router.post(
   '/',
