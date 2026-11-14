@@ -49,7 +49,7 @@ After logout, both the access token and refresh token for that user are invalida
 |---|---|
 | `ADMIN` | Full access, including user CRUD |
 | `PLACEMENT_OFFICER` | Manage departments, degrees, companies, students, and campus drives |
-| `STUDENT` | Authenticated read access, complete skill CRUD, creating and editing their own student record, and management of their own skills, internships, and projects |
+| `STUDENT` | Authenticated read access, complete skill CRUD, creating and editing their own student record, management of their own skills, internships, and projects, viewing the jobs they are eligible for, applying for them, and viewing their own applications |
 | `RECRUITER` | Authenticated read access and complete skill CRUD |
 
 The detailed permissions are listed with each API below.
@@ -426,6 +426,8 @@ Student record exists:
     "degreeId": "3f1c8a52-6e0b-4c1d-9a7e-2b5d4f8e1c30",
     "batch": 2026,
     "semester": 8,
+    "cgpa": 8.75,
+    "backlogs": 0,
     "phone": "9876543210",
     "dateOfBirth": "2004-05-10T00:00:00.000Z",
     "location": "Chennai",
@@ -466,11 +468,19 @@ Optional fields:
   "degreeId": "degree-uuid",
   "batch": 2026,
   "semester": 8,
+  "cgpa": 8.75,
+  "backlogs": 0,
   "phone": "9876543210",
   "dateOfBirth": "2004-05-10",
   "location": "Chennai"
 }
 ```
+
+`cgpa` is a number from `0` to `10` with at most 2 decimal places, or `null`. Any other value returns `400`. Responses always include `cgpa` as a number, or `null` when it has not been set.
+
+`backlogs` is the student's number of backlogs: a whole number of `0` or more, or `null`. Any other value (a negative number, a decimal, or a string such as `"2"`) returns `400`. Responses always include `backlogs`, which is `null` when it has not been set.
+
+`batch` is the student's graduation year. The Jobs APIs compare it with a drive role's `graduationYears`, and they also use `cgpa`, `backlogs`, `departmentId`, and the student's skills to decide which jobs the student sees. See [Jobs](#jobs).
 
 `name` is the student's name, up to 150 characters. Records created before this field was added return `name` as `null` until it is set with an edit.
 
@@ -487,6 +497,8 @@ Complete example:
   "degreeId": "3f1c8a52-6e0b-4c1d-9a7e-2b5d4f8e1c30",
   "batch": 2026,
   "semester": 8,
+  "cgpa": 8.75,
+  "backlogs": 0,
   "phone": "9876543210",
   "dateOfBirth": "2004-05-10",
   "location": "Chennai"
@@ -508,6 +520,8 @@ Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`.
   "userUuid": "30f33c17-a7c1-44e7-a58f-f23c0437bc86",
   "name": "Priya Nair",
   "semester": 8,
+  "cgpa": 8.9,
+  "backlogs": 1,
   "location": "Bengaluru"
 }
 ```
@@ -1128,6 +1142,319 @@ OTHER
 ```
 
 `jdPdfUrl` accepts a PDF URL. PDF binary upload is not currently implemented.
+
+## Jobs
+
+The Jobs APIs power the student **Jobs** screen. They return only the jobs a given student is eligible for, with a match score for each one.
+
+A job is a role inside a campus drive. There is no separate jobs table: jobs come straight from the drive roles that placement officers create with the Campus Drive APIs, so any change to a drive or role shows up in the Jobs APIs immediately.
+
+Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`. A `STUDENT` can only pass their own `studentId`; any other student returns `403`. `ADMIN` and `PLACEMENT_OFFICER` can pass any `studentId` to see what that student sees.
+
+### How eligibility works
+
+A job is returned for a student only when **all** of these are true:
+
+| Check | Rule |
+|---|---|
+| Drive status | The drive is `UPCOMING` or `ONGOING`. `DRAFT`, `COMPLETED`, and `CANCELLED` drives are hidden. |
+| Company | The drive's company is `ACTIVE`. |
+| Apply by | The drive's `registrationEndDate` is today or later, or is not set. |
+| CGPA | The student's `cgpa` is at least the role's `minimumCgpa`. |
+| Backlogs | The student's `backlogs` is at most the role's `maximumBacklogs`. |
+| Department | The student's `departmentId` is one of the role's `departments`. |
+| Year | The student's `batch` (graduation year) is one of the role's `graduationYears`. |
+| Skills | The student has at least one of the role's skills. |
+
+Any criterion the role leaves empty (`null`, or an empty list) is open to every student. For example, a role with no `minimumCgpa` accepts any CGPA.
+
+If the role sets a criterion but the student's matching profile field is empty, the student is **not** eligible. For example, a student with no `cgpa` does not see roles that set a `minimumCgpa`. The list response returns `missingProfileFields` so the app can prompt the student to complete their profile.
+
+The student must also be `ACTIVE`. An inactive student returns `403`.
+
+The role's `degree` and `otherCriteria` are returned for display but are not used for filtering.
+
+### Match score
+
+`match.percentage` is the share of the role's skills that the student has, rounded to a whole number:
+
+```text
+percentage = round(matchedSkills / totalSkills * 100)
+```
+
+A role with no skills matches at `100`. Each skill in `skills` has `matched: true` when the student has that skill, so the app can show or highlight the matching skills.
+
+`match.label`:
+
+| Percentage | Label |
+|---|---|
+| 90–100 | `Excellent` |
+| 80–89 | `Great` |
+| 60–79 | `Good` |
+| 0–59 | `Fair` |
+
+### Get jobs for a student
+
+```http
+GET /api/jobs?studentId=student-record-uuid
+```
+
+`studentId` is required and is the student record `id`, not the user's `userUuid`. Get it from `GET /api/students/profile`.
+
+Optional query parameters, matching the filters on the Jobs screen:
+
+| Parameter | Description |
+|---|---|
+| `search` | Case-insensitive text search across company name, job role, location, and skill names |
+| `companyId` | Only jobs from this company |
+| `jobRole` | Job role contains this text, case-insensitive |
+| `jobLocation` | Job location contains this text, case-insensitive |
+| `jobType` | One of the job type values listed under Campus drive enum values |
+| `sortBy` | `newest` (default, newest role first), `applyBy` (closest apply-by date first; jobs with no apply-by date last), or `match` (highest match first) |
+| `page` | Page number. Default: `1` |
+| `pageSize` | Jobs per page, from `1` to `100`. Default: `20` |
+
+Example:
+
+```http
+GET /api/jobs?studentId=ae4bce82-c44b-4681-890f-d9bad6349bcd&jobType=FULL_TIME&sortBy=match&page=1&pageSize=20
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "8c470353-cea6-4fd1-ad8b-6b2890c7e6fb",
+      "jobRole": "Software Engineer",
+      "jobLocation": "Bangalore",
+      "jobType": "FULL_TIME",
+      "ctcPackage": "7.5 LPA",
+      "numberOfOpenings": 10,
+      "company": {
+        "id": "7e113ed7-cb4b-4e68-9bf4-75fcb092a9c1",
+        "name": "Tata Consultancy Services",
+        "website": "https://www.tcs.com",
+        "location": "Mumbai"
+      },
+      "drive": {
+        "id": "6c18b908-8e4a-4cd5-85d5-b9d926b4dc10",
+        "driveDate": "2026-11-25T00:00:00.000Z",
+        "driveTime": "10:00",
+        "venue": "Main Auditorium",
+        "status": "UPCOMING"
+      },
+      "applyBy": "2026-11-19T00:00:00.000Z",
+      "daysLeft": 5,
+      "skills": [
+        { "id": "3a6e4280-c448-44d8-bad7-7bb5a0e61a7b", "skill": "Java", "category": "Programming", "domain": "Software", "matched": true },
+        { "id": "58f31992-f381-4fd2-be41-6d8e0c16b109", "skill": "SQL", "category": "Database", "domain": "Software", "matched": true },
+        { "id": "9b2d1c4e-7a3f-4e8b-a1c2-5d6e7f8a9b0c", "skill": "OOPs", "category": "Concepts", "domain": "Software", "matched": false }
+      ],
+      "match": {
+        "percentage": 67,
+        "label": "Good",
+        "matchedSkills": 2,
+        "totalSkills": 3
+      },
+      "eligibility": {
+        "minimumCgpa": 7,
+        "maximumBacklogs": 0,
+        "graduationYears": [2026],
+        "degree": "B.E"
+      },
+      "application": null,
+      "createdAt": "2026-11-10T09:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "totalPages": 1
+  },
+  "filterOptions": {
+    "companies": [
+      { "id": "7e113ed7-cb4b-4e68-9bf4-75fcb092a9c1", "name": "Tata Consultancy Services" }
+    ],
+    "jobRoles": ["Software Engineer"],
+    "jobLocations": ["Bangalore"],
+    "jobTypes": ["FULL_TIME"]
+  },
+  "missingProfileFields": []
+}
+```
+
+Response fields:
+
+- `id` is the drive role `id`. Use it with `GET /api/jobs/:roleId` for the job details screen.
+- `applyBy` is the drive's `registrationEndDate`, and `daysLeft` is the number of days from today until then (`0` on the last day). Both are `null` when the drive has no apply-by date.
+- `application` is `null` when the student has not applied for this job. After they apply, it is `{ "id", "status", "appliedAt" }`, so the app can show **Applied** instead of the Apply button. See [Applications](#applications).
+- `filterOptions` lists the values for the **All Companies**, **All Roles**, **All Locations**, and **All Job Types** dropdowns. It is built from every job the student is eligible for, before `search` and the other filters are applied, so the dropdowns keep all their options while filters are selected.
+- `missingProfileFields` lists the empty profile fields that hide jobs: any of `cgpa`, `backlogs`, `departmentId`, `batch`, and `skills`. It is an empty array when the profile is complete.
+
+When no jobs match, `data` is an empty array and the response is still `200`.
+
+A missing or invalid `studentId` or query value returns `400`, a student that does not exist returns `404`, and a `STUDENT` passing another student's `studentId`, or an inactive student, returns `403`.
+
+### Get a job
+
+```http
+GET /api/jobs/:roleId?studentId=student-record-uuid
+```
+
+Returns one job with its full details, for the screen opened from a row's arrow. `studentId` is required. The same eligibility rules apply: if the student is not eligible for this job, or the job does not exist, the response is `404`.
+
+The response has every field from the list response, plus:
+
+```json
+{
+  "jobDescription": "Build and maintain enterprise applications.",
+  "jdPdfUrl": "https://example.com/jd/tcs-software-engineer.pdf",
+  "selectionProcesses": ["ONLINE_ASSESSMENT", "TECHNICAL_INTERVIEW", "HR_INTERVIEW"],
+  "eligibility": {
+    "minimumCgpa": 7,
+    "maximumBacklogs": 0,
+    "graduationYears": [2026],
+    "degree": "B.E",
+    "departments": [
+      { "id": "48ce8bfd-f067-4887-95af-9ef4d72044cc", "name": "Computer Science" }
+    ],
+    "otherCriteria": ["No active backlogs"]
+  }
+}
+```
+
+## Applications
+
+The Applications APIs let a student apply for a job from the Jobs screen and list their applications on the **Applications** screen.
+
+Each application links one student to one job (a drive role). A student can apply for a job only once.
+
+Allowed roles: `ADMIN`, `PLACEMENT_OFFICER`, and `STUDENT`. A `STUDENT` can only pass their own `studentId`; any other student returns `403`. `ADMIN` and `PLACEMENT_OFFICER` can pass any `studentId`, including to apply on a student's behalf.
+
+Application status values:
+
+```text
+APPLIED, SHORTLISTED, REJECTED, SELECTED, WITHDRAWN
+```
+
+A new application always starts as `APPLIED`. There is no API yet for changing the status.
+
+If a placement officer deletes a drive or a drive role, the applications for it are deleted too.
+
+### Apply for a job
+
+```http
+POST /api/applications
+```
+
+Request:
+
+```json
+{
+  "studentId": "ae4bce82-c44b-4681-890f-d9bad6349bcd",
+  "roleId": "8c470353-cea6-4fd1-ad8b-6b2890c7e6fb"
+}
+```
+
+`studentId` is the student record `id`. `roleId` is the job `id` from `GET /api/jobs`.
+
+A student can only apply for a job they are eligible for, using the same rules as the Jobs screen (see [How eligibility works](#how-eligibility-works)). This also means applications close once the drive's `registrationEndDate` has passed, or when the drive is no longer `UPCOMING` or `ONGOING`.
+
+Response `201`:
+
+```json
+{
+  "id": "0f9a7c52-3b1e-4d6a-9c8f-2e4b6a1d3c70",
+  "status": "APPLIED",
+  "appliedAt": "2026-11-14T10:30:00.000Z",
+  "updatedAt": "2026-11-14T10:30:00.000Z",
+  "job": {
+    "id": "8c470353-cea6-4fd1-ad8b-6b2890c7e6fb",
+    "jobRole": "Software Engineer",
+    "jobLocation": "Bangalore",
+    "jobType": "FULL_TIME",
+    "ctcPackage": "7.5 LPA",
+    "company": { "id": "7e113ed7-cb4b-4e68-9bf4-75fcb092a9c1", "name": "Tata Consultancy Services" },
+    "applyBy": "2026-11-19T00:00:00.000Z",
+    "daysLeft": 5,
+    "match": { "percentage": 67, "label": "Good", "matchedSkills": 2, "totalSkills": 3 }
+  }
+}
+```
+
+`job` has the same fields as a job in the `GET /api/jobs` response, except `application`. The example above is shortened.
+
+Errors:
+
+| Status | When |
+|---|---|
+| `400` | `studentId` or `roleId` is missing or not a valid UUID, or the student is not eligible for the job or applications for it are closed |
+| `403` | A `STUDENT` passes another student's `studentId`, or the student is inactive |
+| `404` | The student or the job does not exist |
+| `409` | The student has already applied for this job |
+
+### Get a student's applications
+
+```http
+GET /api/applications?studentId=student-record-uuid
+```
+
+`studentId` is required. Applications are returned newest first, by `appliedAt`.
+
+Optional query parameters:
+
+| Parameter | Description |
+|---|---|
+| `status` | Only applications with this status |
+| `search` | Case-insensitive text search across company name, job role, and location |
+| `page` | Page number. Default: `1` |
+| `pageSize` | Applications per page, from `1` to `100`. Default: `20` |
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "0f9a7c52-3b1e-4d6a-9c8f-2e4b6a1d3c70",
+      "status": "APPLIED",
+      "appliedAt": "2026-11-14T10:30:00.000Z",
+      "updatedAt": "2026-11-14T10:30:00.000Z",
+      "job": {
+        "id": "8c470353-cea6-4fd1-ad8b-6b2890c7e6fb",
+        "jobRole": "Software Engineer",
+        "company": { "id": "7e113ed7-cb4b-4e68-9bf4-75fcb092a9c1", "name": "Tata Consultancy Services" },
+        "match": { "percentage": 67, "label": "Good", "matchedSkills": 2, "totalSkills": 3 }
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "totalPages": 1
+  },
+  "statusCounts": {
+    "ALL": 1,
+    "APPLIED": 1,
+    "SHORTLISTED": 0,
+    "REJECTED": 0,
+    "SELECTED": 0,
+    "WITHDRAWN": 0
+  }
+}
+```
+
+- `job` has the same fields as in the Apply response. The example above is shortened.
+- An application stays in this list even if the student no longer meets the job's criteria, or the drive is completed or cancelled. `job.match` uses the student's current skills.
+- `statusCounts` counts all of the student's applications by status, ignoring `status`, `search`, and paging, so it can drive status tabs or summary cards.
+
+When the student has no applications, `data` is an empty array and the response is still `200`.
+
+A missing or invalid `studentId` or query value returns `400`, a student that does not exist returns `404`, and a `STUDENT` passing another student's `studentId`, or an inactive student, returns `403`.
 
 ## Common response codes
 

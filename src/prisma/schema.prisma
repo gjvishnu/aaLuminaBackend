@@ -41,6 +41,14 @@ enum JobType {
   APPRENTICESHIP
 }
 
+enum ApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  REJECTED
+  SELECTED
+  WITHDRAWN
+}
+
 enum SelectionProcess {
   ONLINE_ASSESSMENT
   APTITUDE_TEST
@@ -75,20 +83,39 @@ model Student {
   degreeId           String?    @db.Uuid
   batch              Int?
   semester           Int?
+  cgpa               Decimal?   @db.Decimal(4, 2)
+  backlogs           Int?
   phone              String?    @db.VarChar(20)
   dateOfBirth        DateTime?  @db.Date
   location           String?    @db.VarChar(150)
   status             UserStatus @default(ACTIVE)
 
-  user       User           @relation(fields: [userUuid], references: [userUuid], onDelete: Cascade)
-  department Department?    @relation(fields: [departmentId], references: [id])
-  degree     Degree?        @relation(fields: [degreeId], references: [id])
-  skills     StudentSkill[]
-  internships Internship[]
-  projects    Project[]
+  user         User             @relation(fields: [userUuid], references: [userUuid], onDelete: Cascade)
+  department   Department?      @relation(fields: [departmentId], references: [id])
+  degree       Degree?          @relation(fields: [degreeId], references: [id])
+  skills       StudentSkill[]
+  internships  Internship[]
+  projects     Project[]
+  applications JobApplication[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// A student's application to a job (a DriveRole). One application per student per role.
+model JobApplication {
+  id          String            @id @default(uuid()) @db.Uuid
+  studentId   String            @db.Uuid
+  driveRoleId String            @db.Uuid
+  status      ApplicationStatus @default(APPLIED)
+  appliedAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  driveRole   DriveRole         @relation(fields: [driveRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, driveRoleId])
+  @@index([driveRoleId])
+  @@index([status])
 }
 
 model Internship {
@@ -218,6 +245,7 @@ model DriveRole {
   drive              CampusDrive           @relation(fields: [driveId], references: [id], onDelete: Cascade)
   departments        DriveRoleDepartment[]
   skills             DriveRoleSkill[]
+  applications       JobApplication[]
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 

@@ -9,6 +9,8 @@ const publicStudentFields = {
   degreeId: true,
   batch: true,
   semester: true,
+  cgpa: true,
+  backlogs: true,
   phone: true,
   dateOfBirth: true,
   location: true,
@@ -25,6 +27,31 @@ const isUuid = (value) =>
 
 const isValidName = (value) =>
   typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 150;
+
+const CGPA_ERROR_MESSAGE =
+  'cgpa must be a number between 0 and 10 with at most 2 decimal places, or null';
+
+// cgpa is optional: null clears it; otherwise 0–10 with up to 2 decimals (DECIMAL(4,2)).
+const isValidCgpa = (value) =>
+  value === null ||
+  (typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 10 &&
+    Math.abs(Math.round(value * 100) - value * 100) < 1e-9);
+
+const BACKLOGS_ERROR_MESSAGE = 'backlogs must be a whole number of 0 or more, or null';
+
+// backlogs is optional: null clears it; otherwise a non-negative integer that fits a Postgres INTEGER.
+const isValidBacklogs = (value) =>
+  value === null || (Number.isInteger(value) && value >= 0 && value <= 2147483647);
+
+// Prisma returns Decimal columns as Decimal objects (serialized as strings); expose a number.
+const formatStudent = (student) =>
+  student && {
+    ...student,
+    cgpa: student.cgpa === null ? null : Number(student.cgpa),
+  };
 
 const validateStudentUser = async (userUuid) => {
   if (!isUuid(userUuid)) {
@@ -88,7 +115,7 @@ export const getStudents = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    return res.status(200).json(students);
+    return res.status(200).json(students.map(formatStudent));
   } catch (error) {
     console.error('Failed to fetch students:', error.message);
     return res.status(500).json({ message: 'Failed to fetch students' });
@@ -116,7 +143,7 @@ export const getStudentProfile = async (req, res) => {
       select: publicStudentFields,
     });
 
-    return res.status(200).json({ freshUser: !student, student });
+    return res.status(200).json({ freshUser: !student, student: formatStudent(student) });
   } catch (error) {
     console.error('Failed to fetch student profile:', error.message);
     return res.status(500).json({ message: 'Failed to fetch student profile' });
@@ -133,6 +160,8 @@ export const createStudent = async (req, res) => {
       degreeId,
       batch,
       semester,
+      cgpa,
+      backlogs,
       phone,
       dateOfBirth,
       location,
@@ -174,6 +203,14 @@ export const createStudent = async (req, res) => {
       }
     }
 
+    if (cgpa !== undefined && !isValidCgpa(cgpa)) {
+      return res.status(400).json({ message: CGPA_ERROR_MESSAGE });
+    }
+
+    if (backlogs !== undefined && !isValidBacklogs(backlogs)) {
+      return res.status(400).json({ message: BACKLOGS_ERROR_MESSAGE });
+    }
+
     const parsedDateOfBirth = parseDate(dateOfBirth);
 
     if (dateOfBirth && !parsedDateOfBirth) {
@@ -189,6 +226,8 @@ export const createStudent = async (req, res) => {
         degreeId: degreeId ?? null,
         batch: batch ?? null,
         semester: semester ?? null,
+        cgpa: cgpa ?? null,
+        backlogs: backlogs ?? null,
         phone: phone || null,
         dateOfBirth: parsedDateOfBirth,
         location: location || null,
@@ -196,7 +235,7 @@ export const createStudent = async (req, res) => {
       select: publicStudentFields,
     });
 
-    return res.status(201).json(student);
+    return res.status(201).json(formatStudent(student));
   } catch (error) {
     if (error.code === 'P2002') {
       return res.status(409).json({
@@ -224,6 +263,8 @@ export const updateStudent = async (req, res) => {
       degreeId,
       batch,
       semester,
+      cgpa,
+      backlogs,
       phone,
       dateOfBirth,
       location,
@@ -277,6 +318,21 @@ export const updateStudent = async (req, res) => {
 
     if (batch !== undefined) data.batch = batch;
     if (semester !== undefined) data.semester = semester;
+
+    if (cgpa !== undefined) {
+      if (!isValidCgpa(cgpa)) {
+        return res.status(400).json({ message: CGPA_ERROR_MESSAGE });
+      }
+      data.cgpa = cgpa;
+    }
+
+    if (backlogs !== undefined) {
+      if (!isValidBacklogs(backlogs)) {
+        return res.status(400).json({ message: BACKLOGS_ERROR_MESSAGE });
+      }
+      data.backlogs = backlogs;
+    }
+
     if (phone !== undefined) data.phone = phone || null;
     if (location !== undefined) data.location = location || null;
 
@@ -302,7 +358,7 @@ export const updateStudent = async (req, res) => {
       select: publicStudentFields,
     });
 
-    return res.status(200).json(student);
+    return res.status(200).json(formatStudent(student));
   } catch (error) {
     if (error.code === 'P2002') {
       return res.status(409).json({ message: 'Registration number already exists' });
@@ -333,7 +389,7 @@ export const deleteStudent = async (req, res) => {
 
     return res.status(200).json({
       message: 'Student marked as inactive',
-      student,
+      student: formatStudent(student),
     });
   } catch (error) {
     if (error.code === 'P2025') {

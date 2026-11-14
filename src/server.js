@@ -1,10 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import prisma, { connectDatabase } from './db.js';
+import applicationRoutes from './routes/applicationRoutes.js';
 import companyRoutes from './routes/companyRoutes.js';
 import degreeRoutes from './routes/degreeRoutes.js';
 import departmentRoutes from './routes/departmentRoutes.js';
 import driveRoutes from './routes/driveRoutes.js';
+import jobRoutes from './routes/jobRoutes.js';
 import skillRoutes from './routes/skillRoutes.js';
 import studentRoutes from './routes/studentRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -23,10 +25,12 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 );
+app.use('/api/applications', applicationRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/degrees', degreeRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/drives', driveRoutes);
+app.use('/api/jobs', jobRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/users', userRoutes);
